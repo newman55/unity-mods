@@ -10,6 +10,7 @@ using UnityEngine.EventSystems;
 using TH20;
 using FullInspector;
 using System.IO;
+using System.Xml.Serialization;
 using static Difficulty.Settings;
 
 namespace Difficulty
@@ -33,20 +34,19 @@ namespace Difficulty
             public float ReputationTreatmentSuccess = 1f;
             public float ReputationTreatmentIneffective = -0.5f;
             public float ReputationDeath = -1f;
-            [NotSerialized]
+            [XmlIgnore]
             public float ReputationSendHome = -0.25f;
             public float ReputationDecayMultiplier = 1f;
             public float GlobalSellValueMultiplier = 1f;
             public float PatientUpdateHealthMultiplier = 1f;
             public float StaffUpdateEnergyMultiplier = 1f;
             public float ResearchMultiplier = 1f;
-            public int PatientSpawnRate = 60;
+            public float PatientSpawnRateMultiplier = 0.66f;
             public bool HideButtonSendtoTreatment = false;
         }
 
         public GameConfig Easy = new GameConfig
         {
-            ReputationDeath = -1f,
             PatientUpdateHealthMultiplier = 0.5f,
             StaffUpdateEnergyMultiplier = 0.5f,
             ResearchMultiplier = 2f,
@@ -100,7 +100,7 @@ namespace Difficulty
             modEntry.OnToggle = OnToggle;
             modEntry.OnGUI = OnGUI;
             modEntry.OnSaveGUI = OnSaveGUI;
-
+            
             return true;
         }
 
@@ -308,7 +308,7 @@ namespace Difficulty
     [HarmonyPatch(typeof(ReputationTracker), "DecayValue")]
     static class ReputationTracker_DecayValue_Patch
     {
-        static bool Prefix(ReputationTracker __instance, ref float __result, float value, float rate, float deltaTime)
+        static bool Prefix(ref float __result, float value, float rate, float deltaTime)
         {
             if (!Main.enabled)
                 return true;
@@ -327,7 +327,7 @@ namespace Difficulty
             if (!Main.enabled)
                 return true;
 
-            float num = Main.GetConfig().PatientSpawnRate / Mathf.Lerp(1, 3, ____reputationTracker.OverallReputation) / (____prestigeTracker.Data.PatientArrivalRate * 0.5f);
+            float num = ____config._patientSpawnRate * Main.GetConfig().PatientSpawnRateMultiplier / Mathf.Lerp(1, 3, ____reputationTracker.OverallReputation) / (____prestigeTracker.Data.PatientArrivalRate * 0.5f);
             __result = num + num * RandomUtils.GlobalRandomInstance.NextFloat(-0.25f, 0.25f);
 
             return false;

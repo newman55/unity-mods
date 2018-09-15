@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -217,11 +218,27 @@ namespace AdvancedAI
             float chanceOfSuccess = 0;
             foreach (Room room in _roomsCache)
             {
-                if (room.WhoCanUse.IsMember(patient))
+                if (room.WhoCanUse.IsMember(patient) && room.IsFunctional())
                 {
                     try
                     {
-                        var breakdown = GameAlgorithms.CalculateEstimatedTreatmentOutcome(patient, room.StaffMembers.FirstOrDefault(), room);
+                        var staff = room.AssignedStaff.FirstOrDefault(x => x.Definition._type == StaffDefinition.Type.Doctor);
+                        staff = staff ?? room.AssignedStaff.FirstOrDefault(x => x.Definition._type == StaffDefinition.Type.Nurse);
+                        if (staff == null || staff.Definition._type == StaffDefinition.Type.Nurse && !room.RequiredStaffAssigned())
+                        {
+                            var leaveHistory = Room_StaffLeaveRoom_Patch.leaveHistory;
+                            for (int i = leaveHistory.Count - 1; i >= 0; i--)
+                            {
+                                if (leaveHistory.ElementAt(i).roomId == room.ID)
+                                {
+                                    staff = patient.Level.CharacterManager.StaffMembers.Find(x => x.ID == leaveHistory.ElementAt(i).staffId);
+                                    if (staff != null)
+                                        break;
+                                }
+                            }
+                        }
+
+                        var breakdown = GameAlgorithms.CalculateEstimatedTreatmentOutcome(patient, staff, room);
                         chanceOfSuccess += breakdown.ChanceOfSuccess;
                         count++;
                     }
@@ -235,6 +252,34 @@ namespace AdvancedAI
             _roomsCache.Clear();
 
             return count > 0 ? chanceOfSuccess / count : 0;
+        }
+    }
+
+    [HarmonyPatch(typeof(Room), "StaffLeaveRoom")]
+    static class Room_StaffLeaveRoom_Patch
+    {
+        public static Queue<LeaveHistory> leaveHistory = new Queue<LeaveHistory>(100);
+
+        public class LeaveHistory
+        {
+            public int staffId;
+            public int roomId;
+        }
+
+        static void Postfix(Room __instance, Staff staff)
+        {
+            if (__instance.Definition.IsHospital)
+                return;
+
+            if (staff.Definition._type == StaffDefinition.Type.Doctor
+                || staff.Definition._type == StaffDefinition.Type.Nurse && !__instance.Definition.GetRequiredStaff().Exists(x => x.Definition._type == StaffDefinition.Type.Doctor))
+            {
+                leaveHistory.Enqueue(new LeaveHistory { staffId = staff.ID, roomId = __instance.ID });
+            }
+
+            var count = staff.Level.CharacterManager.StaffMembers.Count * 2;
+            while(leaveHistory.Count > count)
+                leaveHistory.Dequeue();
         }
     }
 
@@ -314,6 +359,35 @@ namespace AdvancedAI
         static List<Room> _roomsCache = new List<Room>();
 
         static void Postfix(ReceptionistSeePatient __instance, TaskStatus __result, SharedCharacterRef ___Character)
+        {
+            if (!Main.enabled || !Main.settings.SendtoHomeIfHospitalFull)
+                return;
+
+            if (__result == TaskStatus.Success && ___Character.Get is Patient)
+            {
+                var level = ___Character.Get.Level;
+                level.WorldState.GetRoomsOfType(RoomDefinition.Type.GPOffice, true, _roomsCache);
+                int minQueueLength = int.MaxValue;
+                foreach (Room room in _roomsCache)
+                {
+                    if (minQueueLength > room.QueueLength)
+                        minQueueLength = room.QueueLength;
+                }
+                if (_roomsCache.Any() && minQueueLength >= 5)
+                {
+                    DiagnosisTreatmentComponent_ProcessDiagnosis_Patch.SendHome(___Character.Get as Patient);
+                }
+                _roomsCache.Clear();
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(KioskSeePatient), "OnUpdate")]
+    static class KioskSeePatient_OnUpdate_Patch
+    {
+        static List<Room> _roomsCache = new List<Room>();
+
+        static void Postfix(KioskSeePatient __instance, TaskStatus __result, SharedCharacterRef ___Character)
         {
             if (!Main.enabled || !Main.settings.SendtoHomeIfHospitalFull)
                 return;
