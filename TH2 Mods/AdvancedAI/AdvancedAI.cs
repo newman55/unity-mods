@@ -291,8 +291,6 @@ namespace AdvancedAI
             if (!Main.enabled)
                 return true;
 
-//            Console.WriteLine($"GetFrontOfQueue {__instance.Definition._type} {__instance.Queue.Count}");
-            
             __instance.Queue.Sort(Compare);
 
             return true;
@@ -306,7 +304,7 @@ namespace AdvancedAI
             {
                 return -1;
             }
-            if (!l.StandInQueue && r.StandInQueue)
+            else if (!l.StandInQueue && r.StandInQueue)
             {
                 return 1;
             }
@@ -317,29 +315,26 @@ namespace AdvancedAI
             {
                 return -1;
             }
-            if (!lVip && rVip)
+            else if (!lVip && rVip)
             {
                 return 1;
             }
-            if (lVip && rVip)
+            else if (lVip && rVip)
             {
                 return 0;
             }
 
             if (Main.settings.QueueOrder == 1)
             {
-                if ((l is Patient lp) && (r is Patient rp))
+                var a = Mathf.Min(((Patient)l).Health.Value(), ((Patient)l).Happiness.Value() * 2f);
+                var b = Mathf.Min(((Patient)r).Health.Value(), ((Patient)r).Happiness.Value() * 2f);
+                if (a < b)
                 {
-                    var a = Mathf.Min(lp.Health.Value(), lp.Happiness.Value() * 2f);
-                    var b = Mathf.Min(rp.Health.Value(), rp.Happiness.Value() * 2f);
-                    if (a < b)
-                    {
-                        return -1;
-                    }
-                    if (a > b)
-                    {
-                        return 1;
-                    }
+                    return -1;
+                }
+                else if (a > b)
+                {
+                    return 1;
                 }
             }
             else if (Main.settings.QueueOrder == 2)
@@ -348,7 +343,7 @@ namespace AdvancedAI
                 {
                     return -1;
                 }
-                if (l.TotalTimeInHospital < r.TotalTimeInHospital)
+                else if (l.TotalTimeInHospital < r.TotalTimeInHospital)
                 {
                     return 1;
                 }
@@ -368,9 +363,9 @@ namespace AdvancedAI
             if (!Main.enabled || !Main.settings.SendtoHomeIfHospitalFull)
                 return;
 
-            if (__result == TaskStatus.Success && ___Character.Get is Patient patient)
+            if (__result == TaskStatus.Success && ___Character.Get is Patient)
             {
-                var level = patient.Level;
+                var level = ___Character.Get.Level;
                 level.WorldState.GetRoomsOfType(RoomDefinition.Type.GPOffice, true, _roomsCache);
                 int minQueueLength = int.MaxValue;
                 foreach (Room room in _roomsCache)
@@ -380,7 +375,36 @@ namespace AdvancedAI
                 }
                 if (_roomsCache.Any() && minQueueLength >= 5)
                 {
-                    DiagnosisTreatmentComponent_ProcessDiagnosis_Patch.SendHome(patient);
+                    DiagnosisTreatmentComponent_ProcessDiagnosis_Patch.SendHome(___Character.Get as Patient);
+                }
+                _roomsCache.Clear();
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(KioskSeePatient), "OnUpdate")]
+    static class KioskSeePatient_OnUpdate_Patch
+    {
+        static List<Room> _roomsCache = new List<Room>();
+
+        static void Postfix(KioskSeePatient __instance, TaskStatus __result, SharedCharacterRef ___Character)
+        {
+            if (!Main.enabled || !Main.settings.SendtoHomeIfHospitalFull)
+                return;
+
+            if (__result == TaskStatus.Success && ___Character.Get is Patient)
+            {
+                var level = ___Character.Get.Level;
+                level.WorldState.GetRoomsOfType(RoomDefinition.Type.GPOffice, true, _roomsCache);
+                int minQueueLength = int.MaxValue;
+                foreach (Room room in _roomsCache)
+                {
+                    if (minQueueLength > room.QueueLength)
+                        minQueueLength = room.QueueLength;
+                }
+                if (_roomsCache.Any() && minQueueLength >= 5)
+                {
+                    DiagnosisTreatmentComponent_ProcessDiagnosis_Patch.SendHome(___Character.Get as Patient);
                 }
                 _roomsCache.Clear();
             }
