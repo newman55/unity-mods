@@ -62,6 +62,25 @@ namespace JobAssign
 			settings.Save(modEntry);
 		}
 	}
+	
+//	[HarmonyPatch(typeof(StaffMenuRowProvider), "GetDefaultOrderStaffSortValue")]
+//	static class StaffMenuRowProvider_GetDefaultOrderStaffSortValue_Patch
+//	{
+//		static bool Prefix(ref int __result, Staff staff, int instanceID)
+//		{
+//			if (!Main.enabled || staff == null || staff.Definition._type != StaffDefinition.Type.Doctor && staff.Definition._type != StaffDefinition.Type.Nurse)
+//				return true;
+//
+//			RoomDefinition
+//			int hash = 0;
+//			for (int i = 0; i < staff.JobExclusions.Count; i++)
+//			{
+//				hash <<= staff.JobExclusions[i]
+//			}
+//
+//			return false;
+//		}
+//	}
 
 	[HarmonyPatch(typeof(HospitalEventStaffHired.Config), "OnStaffHiredEvent")]
 	static class HospitalEventStaffHired_OnStaffHiredEvent_Patch
