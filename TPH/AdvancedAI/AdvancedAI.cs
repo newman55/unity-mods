@@ -19,6 +19,7 @@ namespace AdvancedAI
         public int SendtoHomeTreatmentChance = 70;
         public int QueueOrder = 1;
         public bool SendtoHomeIfHospitalFull = true;
+        public bool SendtoHomeIfRoomNotExists = true;
 
         public override void Save(UnityModManager.ModEntry modEntry)
         {
@@ -84,10 +85,17 @@ namespace AdvancedAI
                 settings.SendtoHomeTreatmentChance = Mathf.Clamp(result, 0, 100);
             }
             GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("GP: Send to home if room not exists ", GUILayout.ExpandWidth(false));
+            settings.SendtoHomeIfRoomNotExists = GUILayout.Toggle(settings.SendtoHomeIfRoomNotExists, "", GUILayout.ExpandWidth(false));
+            GUILayout.EndHorizontal();
+
             GUILayout.BeginHorizontal();
             GUILayout.Label("Reception: Send to home if GP offices is full ", GUILayout.ExpandWidth(false));
             settings.SendtoHomeIfHospitalFull = GUILayout.Toggle(settings.SendtoHomeIfHospitalFull, "", GUILayout.ExpandWidth(false));
             GUILayout.EndHorizontal();
+
             GUILayout.BeginHorizontal();
             GUILayout.Label("Queue order: ", GUILayout.ExpandWidth(false));
 
@@ -159,7 +167,7 @@ namespace AdvancedAI
                     bool haveRoom = GameAlgorithms.DoesHospitalHaveRoom(patient.Level.WorldState, roomDef._type);
                     var knownedIllness = patient.Level.GameplayStatsTracker.HasIllnessBeenDiagnosedBefore(patient.Illness);
                     var treatmentChance = CalculateAverageTreatmentChance(patient, roomDef);
-                    if (haveRoom && knownedIllness && treatmentChance < Main.settings.SendtoHomeTreatmentChance)
+                    if (knownedIllness && (haveRoom && treatmentChance < Main.settings.SendtoHomeTreatmentChance || !haveRoom && Main.settings.SendtoHomeIfRoomNotExists))
                     {
                         SendHome(patient);
                         //Main.Logger.Log($"send to home {patient.Name} room {roomDef._type} diagnosis {patient.DiagnosisCertainty} treatment {treatmentChance}");
@@ -186,7 +194,7 @@ namespace AdvancedAI
             return false;
         }
 
-        public static void SendHome(Patient patient)
+        public static void SendHome(this Patient patient)
         {
             try
             {
@@ -207,13 +215,13 @@ namespace AdvancedAI
 
         static List<Room> _roomsCache = new List<Room>();
 
-        static float CalculateAverageTreatmentChance(Patient patient, RoomDefinition roomDef)
+        public static float CalculateAverageTreatmentChance(this Patient patient, RoomDefinition roomDef)
         {
             if (roomDef == null)
                 return 0;
 
             Level level = patient.Level;
-            level.WorldState.GetRoomsOfType(roomDef._type, true, _roomsCache);
+            level.WorldState.GetRoomsOfType(roomDef._type, false, _roomsCache);
             int count = 0;
             float chanceOfSuccess = 0;
             foreach (Room room in _roomsCache)
@@ -357,7 +365,7 @@ namespace AdvancedAI
             return 0;
         }
     }
-
+     
     [HarmonyPatch(typeof(ReceptionistSeePatient), "OnUpdate")]
     static class ReceptionistSeePatient_OnUpdate_Patch
     {
@@ -371,7 +379,7 @@ namespace AdvancedAI
             if (__result == TaskStatus.Success && ___Character.Get is Patient patient)
             {
                 var level = patient.Level;
-                level.WorldState.GetRoomsOfType(RoomDefinition.Type.GPOffice, true, _roomsCache);
+                level.WorldState.GetRoomsOfType(RoomDefinition.Type.GPOffice, false, _roomsCache);
                 int minQueueLength = int.MaxValue;
                 foreach (Room room in _roomsCache)
                 {
@@ -384,6 +392,45 @@ namespace AdvancedAI
                 }
                 _roomsCache.Clear();
             }
+        }
+    }
+
+    [HarmonyPatch(typeof(AdvisorTriggerDiagnosisRoomRequired), "OnPatientDiagnosisExhausted")]
+    static class AdvisorTriggerDiagnosisRoomRequired_OnPatientDiagnosisExhausted_Patch
+    {
+        static void Postfix(AdvisorTriggerDiagnosisRoomRequired __instance, Patient patient)
+        {
+            if (!Main.enabled)
+                return;
+
+            if (!patient.FullyDiagnosed())
+            {
+                Level level = patient.Level;
+                ResearchManager researchManager = level.ResearchManager;
+
+                var roomDef = patient.Illness.GetTreatmentRoom(patient, researchManager);
+                patient.SendToTreatmentRoom(roomDef, true);
+
+                bool haveRoom = GameAlgorithms.DoesHospitalHaveRoom(patient.Level.WorldState, roomDef._type);
+                var knownedIllness = patient.Level.GameplayStatsTracker.HasIllnessBeenDiagnosedBefore(patient.Illness);
+                var treatmentChance = patient.CalculateAverageTreatmentChance(roomDef);
+                if (knownedIllness && (treatmentChance < Main.settings.SendtoHomeTreatmentChance))
+                {
+                    patient.SendHome();
+                }
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(RoomLogicTrainingRoom), "RemovePupil")]
+    static class RoomLogicTrainingRoom_RemovePupil_Patch
+    {
+        static void Postfix(RoomLogicTrainingRoom __instance, Staff staff)
+        {
+            if (!Main.enabled)
+                return;
+
+            staff.TakeBreak();
         }
     }
 }
