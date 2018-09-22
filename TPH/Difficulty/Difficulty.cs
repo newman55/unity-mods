@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using Harmony;
+using Harmony12;
 using UnityModManagerNet;
 using UnityEngine;
 using UnityEngine.UI;
@@ -186,38 +186,6 @@ namespace Difficulty
             var traverse = Traverse.Create(gameConfig);
             traverse.Field("GlobalSellValueMultiplier").SetValue(GetConfig().GlobalSellValueMultiplier);
         }
-
-        //public static void ChangePatientAttributes(Patient patient)
-        //{
-        //    if (patient.Health != null)
-        //    {
-        //        var death = (Action)Action.CreateDelegate(typeof(Action), patient, "Death");
-        //        var rageQuit = new System.Action(patient.RageQuit);
-        //        patient.Health.RemoveCallback(death);
-        //        patient.Health.RemoveCallback(rageQuit);
-        //        if (settings.Difficulty == Settings.DifficultyType.Easy)
-        //        {
-        //            patient.Health.Equals(0f, rageQuit, false);
-        //        }
-        //        else
-        //        {
-        //            patient.Health.Equals(0f, death, false);
-        //        }
-        //    }
-        //}
-
-        //static void ChangeAllPatientsAttributes()
-        //{
-        //    var obj = GameObject.FindObjectOfType<MetagameMap>();
-        //    var patients = obj?.Level?.CharacterManager?.Patients;
-        //    if (patients != null)
-        //    {
-        //        foreach(var p in patients)
-        //        {
-        //            ChangePatientAttributes(p);
-        //        }
-        //    }
-        //}
     }
 
     [HarmonyPatch(typeof(IllnessDefinition), "GetTreatmentReputationModifier")]
@@ -247,30 +215,6 @@ namespace Difficulty
             return false;
         }
     }
-
-    //[HarmonyPatch(typeof(Patient), MethodType.Constructor, typeof(PatientDefinition), typeof(IllnessDefinition), typeof(Level), typeof(VisualManager), typeof(Character.Sex), typeof(CharacterName), typeof(int), typeof(UnityEngine.Vector3))]
-    //static class Patient_ctor_Patch
-    //{
-    //    static void Postfix(Patient __instance)
-    //    {
-    //        if (!Main.enabled)
-    //            return;
-
-    //        Main.ChangePatientAttributes(__instance);
-    //    }
-    //}
-
-    //[HarmonyPatch(typeof(Patient), "RestoreFromSave")]
-    //static class Patient_RestoreFromSave_Patch
-    //{
-    //    static void Postfix(Patient __instance)
-    //    {
-    //        if (!Main.enabled)
-    //            return;
-
-    //        Main.ChangePatientAttributes(__instance);
-    //    }
-    //}
 
     [HarmonyPatch(typeof(Character), "GetAttributeMultiplier", typeof(CharacterAttributes.Type))]
     static class Character_GetAttributeMultiplier_Patch

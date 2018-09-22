@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using Harmony;
+using Harmony12;
 using UnityModManagerNet;
 using UnityEngine;
 using TH20;

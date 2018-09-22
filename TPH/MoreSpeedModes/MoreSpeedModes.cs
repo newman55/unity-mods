@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text;
-using Harmony;
+using Harmony12;
 using UnityModManagerNet;
 using TH20;
 using UnityEngine.AI;
