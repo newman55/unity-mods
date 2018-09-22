@@ -1,9 +1,9 @@
 {
 	"Releases":
 	[
-		{"Id": "StorageBiggerCapacity", "Version": "1.2.0"},
-		{"Id": "OrdersFix", "Version": "1.0.1"},
-		{"Id": "ElectrolyzerFix", "Version": "1.0.1"},
-		{"Id": "LAST_ROW", "Version": "1.0.0"}
+		{"Id": "StorageBiggerCapacity", "Version": "1.2.1"},
+		{"Id": "OrdersFix", "Version": "1.0.2"},
+		{"Id": "ElectrolyzerFix", "Version": "1.0.2"},
+		{"Id": "TestMod", "Version": "1.1.0"}
 	]
 }
