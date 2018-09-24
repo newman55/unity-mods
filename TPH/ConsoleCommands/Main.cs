@@ -1,10 +1,25 @@
-﻿using System;
+﻿/*
+ * Dev console opens with a tilde.
+ * 
+ * Modify the UnityConsole.ConsoleCommandsDatabase class in Assembly-CSharp-firstpass.dll.
+ * 
+ *  public static void RegisterCommand(string command, string description, string usage, ConsoleCommandCallback callback)
+ *  {
+ *		Console.WriteLine(command);
+ *	}
+ *
+ *	public static void RegisterSimpleCommand(string command, string description, SimpleConsoleCommandCallback callback)
+ *	{
+ *		Console.WriteLine(command);
+ *	}
+ * 
+ */
+
+using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using Harmony12;
 using UnityEngine;
-using TH20;
 using UnityConsole;
 
 namespace ConsoleCommands
