@@ -6,6 +6,8 @@
 		{"Id": "Difficulty", "Version": "1.0.1"},
 		{"Id": "JobAssignHelper", "Version": "1.3.1"},
 		{"Id": "MoreSpeedModes", "Version": "1.0.1"},
+		{"Id": "UnlimitedRoomSizes", "Version": "1.0.0"},
+		{"Id": "RepeatResearch", "Version": "1.0.0"},
 		{"Id": "TestMod", "Version": "1.1.0"},
 		{"Id": "TestMod", "Version": "1.2.0"}
 	]
