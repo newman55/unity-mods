@@ -93,7 +93,8 @@ namespace FastTravel
                         }
                         return Time.deltaTime * settings.TimeScaleInCombat;
                     }
-                    if (Game.Instance.CurrentMode == Kingmaker.GameModes.GameModeType.GlobalMap || Game.Instance.CurrentMode == Kingmaker.GameModes.GameModeType.Kingdom)
+                    if (Game.Instance.CurrentMode == Kingmaker.GameModes.GameModeType.GlobalMap || Game.Instance.CurrentMode == Kingmaker.GameModes.GameModeType.Kingdom
+                        || Game.Instance.CurrentMode == Kingmaker.GameModes.GameModeType.KingdomSettlement)
                     {
                         return Time.deltaTime * settings.TimeScaleInGlobalMap;
                     }
