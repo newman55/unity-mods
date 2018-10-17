@@ -8,6 +8,8 @@ using UnityEngine;
 using UnityModManagerNet;
 using Kingmaker;
 using Kingmaker.Controllers;
+using Kingmaker.Visual.Animation;
+using UnityEngine.Playables;
 
 namespace FastTravel
 {
@@ -25,6 +27,43 @@ namespace FastTravel
 
     static class Main
     {
+        class FastTravelTimeController : MonoBehaviour
+        {
+            private void Awake()
+            {
+                DontDestroyOnLoad(this);
+            }
+
+            private void LateUpdate()
+            {
+                if (Game.Instance.IsPaused)
+                    return;
+                
+                if (enabled && Game.Instance?.Player != null && !Game.Instance.InvertPauseButtonPressed)
+                {
+                    var scale = Game.Instance.TimeController.PlayerTimeScale;
+                    
+                    if (Game.Instance.CurrentMode == Kingmaker.GameModes.GameModeType.Default)
+                    {
+                        if (!Game.Instance.Player.IsInCombat)
+                        {
+                            scale = settings.TimeScaleNonCombat;
+                        }
+                        else
+                        {
+                            scale = settings.TimeScaleInCombat;
+                        }
+                    }
+                    if (Game.Instance.CurrentMode == Kingmaker.GameModes.GameModeType.GlobalMap)
+                    {
+                        scale = settings.TimeScaleInGlobalMap;
+                    }
+                    
+                    Game.Instance.TimeController.PlayerTimeScale = scale;
+                }
+            }
+        }
+        
         public static bool enabled;
         public static Settings settings;
 
@@ -41,6 +80,8 @@ namespace FastTravel
             modEntry.OnToggle = OnToggle;
             modEntry.OnGUI = OnGUI;
             modEntry.OnSaveGUI = OnSaveGUI;
+            
+            new GameObject(nameof(FastTravelTimeController), typeof(FastTravelTimeController));
 
             return true;
         }
@@ -48,6 +89,8 @@ namespace FastTravel
         static bool OnToggle(UnityModManager.ModEntry modEntry, bool value)
         {
             enabled = value;
+            
+            Game.Instance.TimeController.PlayerTimeScale = 1f;
 
             return true;
         }
@@ -76,47 +119,6 @@ namespace FastTravel
         static void OnSaveGUI(UnityModManager.ModEntry modEntry)
         {
             settings.Save(modEntry);
-        }
-
-        static float GetDeltaTime()
-        {
-            try
-            {
-                var player = Game.Instance?.Player;
-                if (enabled && player != null)
-                {
-                    if (Game.Instance.CurrentMode == Kingmaker.GameModes.GameModeType.Default)
-                    {
-                        if (!Game.Instance.Player.IsInCombat)
-                        {
-                            return Time.deltaTime * settings.TimeScaleNonCombat;
-                        }
-                        return Time.deltaTime * settings.TimeScaleInCombat;
-                    }
-                    if (Game.Instance.CurrentMode == Kingmaker.GameModes.GameModeType.GlobalMap || Game.Instance.CurrentMode == Kingmaker.GameModes.GameModeType.Kingdom
-                        || Game.Instance.CurrentMode == Kingmaker.GameModes.GameModeType.KingdomSettlement)
-                    {
-                        return Time.deltaTime * settings.TimeScaleInGlobalMap;
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                //Debug.LogException(e);
-            }
-
-            return Time.deltaTime;
-        }
-
-        [HarmonyPatch(typeof(TimeController), "Tick")]
-        static class TimeController_Tick_Patch
-        {
-            static IEnumerable<CodeInstruction> Transpiler(MethodBase original, IEnumerable<CodeInstruction> instructions)
-            {
-                var from = AccessTools.Method(typeof(Time), "get_deltaTime", new Type[0]);
-                var to = SymbolExtensions.GetMethodInfo(() => Main.GetDeltaTime());
-                return instructions.MethodReplacer(from, to);
-            }
         }
     }
 }
