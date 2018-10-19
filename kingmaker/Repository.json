@@ -2,7 +2,7 @@
 	"Releases":
 	[
 		{"Id": "FastTravel", "Version": "1.1.1"},
-		{"Id": "Respec", "Version": "1.4.0"},
+		{"Id": "Respec", "Version": "1.4.1"},
 		{"Id": "CheatMenu", "Version": "1.1.0"},
 		{"Id": "TestMod", "Version": "1.2.0"}
 	]
