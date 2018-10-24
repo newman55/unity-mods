@@ -39,7 +39,7 @@ namespace FastTravel
                 if (Game.Instance.IsPaused)
                     return;
                 
-                if (enabled && Game.Instance?.Player != null && !Game.Instance.InvertPauseButtonPressed)
+                if (Main.enabled && Game.Instance?.Player != null && !Game.Instance.InvertPauseButtonPressed)
                 {
                     var scale = Game.Instance.TimeController.PlayerTimeScale;
                     
