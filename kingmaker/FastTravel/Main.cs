@@ -7,9 +7,11 @@ using Harmony12;
 using UnityEngine;
 using UnityModManagerNet;
 using Kingmaker;
+using Kingmaker.Blueprints.Root;
 using Kingmaker.Controllers;
 using Kingmaker.Visual.Animation;
 using UnityEngine.Playables;
+using UnityEngine.SceneManagement;
 
 namespace FastTravel
 {
@@ -18,6 +20,7 @@ namespace FastTravel
         public float TimeScaleNonCombat = 2f;
         public float TimeScaleInCombat = 1f;
         public float TimeScaleInGlobalMap = 1.5f;
+        public float SpeedScaleInGlobalMap = 1f;
 
         public override void Save(UnityModManager.ModEntry modEntry)
         {
@@ -36,36 +39,29 @@ namespace FastTravel
 
             private void LateUpdate()
             {
-                if (Game.Instance.IsPaused)
+                if (!Main.enabled || Game.Instance.IsPaused || Game.Instance.InvertPauseButtonPressed || Game.Instance.Player == null)
                     return;
                 
-                if (Main.enabled && Game.Instance?.Player != null && !Game.Instance.InvertPauseButtonPressed)
+                if (Game.Instance.CurrentMode == Kingmaker.GameModes.GameModeType.Default)
                 {
-                    var scale = Game.Instance.TimeController.PlayerTimeScale;
-                    
-                    if (Game.Instance.CurrentMode == Kingmaker.GameModes.GameModeType.Default)
+                    if (!Game.Instance.Player.IsInCombat)
                     {
-                        if (!Game.Instance.Player.IsInCombat)
-                        {
-                            scale = settings.TimeScaleNonCombat;
-                        }
-                        else
-                        {
-                            scale = settings.TimeScaleInCombat;
-                        }
+                        Game.Instance.TimeController.PlayerTimeScale = settings.TimeScaleNonCombat;
                     }
-                    if (Game.Instance.CurrentMode == Kingmaker.GameModes.GameModeType.GlobalMap)
+                    else
                     {
-                        scale = settings.TimeScaleInGlobalMap;
+                        Game.Instance.TimeController.PlayerTimeScale = settings.TimeScaleInCombat;
                     }
-                    
-                    Game.Instance.TimeController.PlayerTimeScale = scale;
+                    return;
                 }
+                Game.Instance.TimeController.PlayerTimeScale = 1f;
             }
         }
         
         public static bool enabled;
         public static Settings settings;
+        public static float mechanicsSpeedBase;
+        public static float visualSpeedBase;
 
         static bool Load(UnityModManager.ModEntry modEntry)
         {
@@ -76,10 +72,19 @@ namespace FastTravel
             settings.TimeScaleNonCombat = Mathf.Clamp(settings.TimeScaleNonCombat, 1f, 3f);
             settings.TimeScaleInCombat = Mathf.Clamp(settings.TimeScaleInCombat, 0.5f, 1.5f);
             settings.TimeScaleInGlobalMap = Mathf.Clamp(settings.TimeScaleInGlobalMap, 1f, 2f);
+            settings.SpeedScaleInGlobalMap = Mathf.Clamp(settings.SpeedScaleInGlobalMap, 1f, 3f);
 
             modEntry.OnToggle = OnToggle;
             modEntry.OnGUI = OnGUI;
             modEntry.OnSaveGUI = OnSaveGUI;
+
+            SceneManager.sceneLoaded += (scene, mode) =>
+            {
+                if (scene.name == "Globalmap")
+                {
+                    UpdateSpeed();
+                }
+            };
             
             new GameObject(nameof(FastTravelTimeController), typeof(FastTravelTimeController));
 
@@ -89,36 +94,84 @@ namespace FastTravel
         static bool OnToggle(UnityModManager.ModEntry modEntry, bool value)
         {
             enabled = value;
-            
-            Game.Instance.TimeController.PlayerTimeScale = 1f;
+
+            UpdateSpeed();
 
             return true;
         }
 
         static void OnGUI(UnityModManager.ModEntry modEntry)
         {
+            GUILayout.Space(5);
+            
+            GUILayout.Label("Increasing game speed", UnityModManager.UI.bold, GUILayout.ExpandWidth(false));
+            
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Non combat", GUILayout.ExpandWidth(false));
+            GUILayout.Label("Exploration", GUILayout.ExpandWidth(false));
+            GUILayout.Space(10);
             settings.TimeScaleNonCombat = GUILayout.HorizontalSlider(settings.TimeScaleNonCombat, 1f, 3f, GUILayout.Width(300f));
             GUILayout.Label($" {settings.TimeScaleNonCombat:p0}", GUILayout.ExpandWidth(false));
             GUILayout.EndHorizontal();
             
             GUILayout.BeginHorizontal();
-            GUILayout.Label("In combat", GUILayout.ExpandWidth(false));
+            GUILayout.Label("Battle", GUILayout.ExpandWidth(false));
+            GUILayout.Space(10);
             settings.TimeScaleInCombat = GUILayout.HorizontalSlider(settings.TimeScaleInCombat, 0.5f, 1.5f, GUILayout.Width(300f));
             GUILayout.Label($" {settings.TimeScaleInCombat:p0}", GUILayout.ExpandWidth(false));
             GUILayout.EndHorizontal();
             
             GUILayout.BeginHorizontal();
             GUILayout.Label("Global map", GUILayout.ExpandWidth(false));
+            GUILayout.Space(10);
             settings.TimeScaleInGlobalMap = GUILayout.HorizontalSlider(settings.TimeScaleInGlobalMap, 1f, 2f, GUILayout.Width(300f));
             GUILayout.Label($" {settings.TimeScaleInGlobalMap:p0}", GUILayout.ExpandWidth(false));
             GUILayout.EndHorizontal();
+            
+            GUILayout.Space(5);
+            
+            GUILayout.Label("Increasing unit speed (Cheating)", UnityModManager.UI.bold, GUILayout.ExpandWidth(false));
+            
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Global map", GUILayout.ExpandWidth(false));
+            GUILayout.Space(10);
+            settings.SpeedScaleInGlobalMap = GUILayout.HorizontalSlider(settings.SpeedScaleInGlobalMap, 1f, 3f, GUILayout.Width(300f));
+            GUILayout.Label($" {settings.SpeedScaleInGlobalMap:p0}", GUILayout.ExpandWidth(false));
+            GUILayout.EndHorizontal();
+            
+            UpdateSpeed();
         }
 
         static void OnSaveGUI(UnityModManager.ModEntry modEntry)
         {
             settings.Save(modEntry);
+        }
+
+        private static bool mInit;
+
+        static void UpdateSpeed()
+        {
+            if (BlueprintRoot.Instance == null || BlueprintRoot.Instance.GlobalMap == null)
+            {
+                return;
+            }
+
+            if (enabled)
+            {
+                if (!mInit)
+                {
+                    mechanicsSpeedBase = BlueprintRoot.Instance.GlobalMap.MechanicsSpeedBase;
+                    visualSpeedBase = BlueprintRoot.Instance.GlobalMap.VisualSpeedBase;
+                    mInit = true;
+                }
+
+                BlueprintRoot.Instance.GlobalMap.MechanicsSpeedBase = mechanicsSpeedBase * settings.SpeedScaleInGlobalMap;
+                BlueprintRoot.Instance.GlobalMap.VisualSpeedBase = visualSpeedBase * settings.TimeScaleInGlobalMap;
+            }
+            else if (mInit)
+            {
+                BlueprintRoot.Instance.GlobalMap.MechanicsSpeedBase = mechanicsSpeedBase;
+                BlueprintRoot.Instance.GlobalMap.VisualSpeedBase = visualSpeedBase;
+            }
         }
     }
 }
