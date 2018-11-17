@@ -7,8 +7,11 @@ using Harmony12;
 using UnityEngine;
 using UnityModManagerNet;
 using Kingmaker;
+using Kingmaker.Blueprints;
 using Kingmaker.Blueprints.Root;
 using Kingmaker.Controllers;
+using Kingmaker.EntitySystem.Entities;
+using Kingmaker.EntitySystem.Stats;
 using Kingmaker.Visual.Animation;
 using UnityEngine.Playables;
 using UnityEngine.SceneManagement;
@@ -20,6 +23,8 @@ namespace FastTravel
         public float TimeScaleNonCombat = 2f;
         public float TimeScaleInCombat = 1f;
         public float TimeScaleInGlobalMap = 1.5f;
+        public float SpeedScaleNonCombat = 1f;
+        public float SpeedScaleInCombat = 1f;
         public float SpeedScaleInGlobalMap = 1f;
 
         public override void Save(UnityModManager.ModEntry modEntry)
@@ -72,6 +77,8 @@ namespace FastTravel
             settings.TimeScaleNonCombat = Mathf.Clamp(settings.TimeScaleNonCombat, 1f, 3f);
             settings.TimeScaleInCombat = Mathf.Clamp(settings.TimeScaleInCombat, 0.5f, 1.5f);
             settings.TimeScaleInGlobalMap = Mathf.Clamp(settings.TimeScaleInGlobalMap, 1f, 2f);
+            settings.SpeedScaleNonCombat = Mathf.Clamp(settings.SpeedScaleNonCombat, 1f, 3f);
+            settings.SpeedScaleInCombat = Mathf.Clamp(settings.SpeedScaleInCombat, 1f, 3f);
             settings.SpeedScaleInGlobalMap = Mathf.Clamp(settings.SpeedScaleInGlobalMap, 1f, 3f);
 
             modEntry.OnToggle = OnToggle;
@@ -129,7 +136,21 @@ namespace FastTravel
             
             GUILayout.Space(5);
             
-            GUILayout.Label("Increasing unit speed (Cheating)", UnityModManager.UI.bold, GUILayout.ExpandWidth(false));
+            GUILayout.Label("Increasing party speed (Cheating)", UnityModManager.UI.bold, GUILayout.ExpandWidth(false));
+            
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Exploration", GUILayout.ExpandWidth(false));
+            GUILayout.Space(10);
+            settings.SpeedScaleNonCombat = GUILayout.HorizontalSlider(settings.SpeedScaleNonCombat, 1f, 3f, GUILayout.Width(300f));
+            GUILayout.Label($" {settings.SpeedScaleNonCombat:p0}", GUILayout.ExpandWidth(false));
+            GUILayout.EndHorizontal();
+            
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Battle", GUILayout.ExpandWidth(false));
+            GUILayout.Space(10);
+            settings.SpeedScaleInCombat = GUILayout.HorizontalSlider(settings.SpeedScaleInCombat, 1f, 3f, GUILayout.Width(300f));
+            GUILayout.Label($" {settings.SpeedScaleInCombat:p0}", GUILayout.ExpandWidth(false));
+            GUILayout.EndHorizontal();
             
             GUILayout.BeginHorizontal();
             GUILayout.Label("Global map", GUILayout.ExpandWidth(false));
@@ -150,7 +171,7 @@ namespace FastTravel
 
         static void UpdateSpeed()
         {
-            if (BlueprintRoot.Instance == null || BlueprintRoot.Instance.GlobalMap == null)
+            if (ResourcesLibrary.LibraryObject == null || ResourcesLibrary.LibraryObject.Root.GlobalMap == null)
             {
                 return;
             }
@@ -171,6 +192,24 @@ namespace FastTravel
             {
                 BlueprintRoot.Instance.GlobalMap.MechanicsSpeedBase = mechanicsSpeedBase;
                 BlueprintRoot.Instance.GlobalMap.VisualSpeedBase = visualSpeedBase;
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(UnitEntityData), "CalculateSpeedModifier")]
+    static class UnitEntityData_CombatSpeedMps_Patch
+    {
+        static void Postfix(UnitEntityData __instance, ref float __result)
+        {
+            if (!Main.enabled)
+                return;
+			
+            try
+            {
+                __result *= __instance.IsInCombat ? Main.settings.SpeedScaleInCombat : Main.settings.SpeedScaleNonCombat;
+            }
+            catch (Exception)
+            {
             }
         }
     }
