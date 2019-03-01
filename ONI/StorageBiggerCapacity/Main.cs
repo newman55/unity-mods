@@ -147,14 +147,14 @@ namespace StorageBiggerCapacity
             return true;
         }
 
-        static int[] multipliers = new int[] { 2, 4 };
+        static int[] multipliers = new int[] { 2, 4, 10, 50, 100 };
         static string[] multipliersText = multipliers.Select(x => x.ToString()).ToArray();
 
         static void OnGUI(UnityModManager.ModEntry modEntry)
         {
             GUILayout.BeginHorizontal();
             GUILayout.Label("Storage capacity multiplier: ", GUILayout.ExpandWidth(false));
-            var id = GUILayout.Toolbar(settings.StorageMultiplierId, multipliersText, GUILayout.Width(50));
+            var id = GUILayout.Toolbar(settings.StorageMultiplierId, multipliersText, GUILayout.ExpandWidth(false));
             if (id != settings.StorageMultiplierId)
             {
                 settings.StorageMultiplierId = id;
