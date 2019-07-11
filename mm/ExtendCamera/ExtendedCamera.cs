@@ -22,6 +22,11 @@ namespace ExtendedCamera
         public float GetMouseSpeed => MouseSpeed * 0.01f;
         public float GetKeyboardSpeed => KeyboardSpeed * 0.5f;
 
+        [Header("Keys"), Space(10)]
+        [Draw("Free Camera")] public UnityModManagerNet.KeyBinding FreeCameraKey = new UnityModManagerNet.KeyBinding { keyCode = KeyCode.X };
+        [Draw("Sticky Camera")] public UnityModManagerNet.KeyBinding StickyCameraKey = new UnityModManagerNet.KeyBinding { keyCode = KeyCode.C };
+        [Draw("Hide UI")] public UnityModManagerNet.KeyBinding HideUIKey = new UnityModManagerNet.KeyBinding { keyCode = KeyCode.H };
+
         public override void Save(UnityModManager.ModEntry modEntry)
         {
             Save(this, modEntry);
@@ -102,7 +107,7 @@ namespace ExtendedCamera
             if (Game.instance?.sessionManager?.circuit == null)
                 return;
             
-            if (Input.GetKeyDown(KeyCode.X))
+            if (settings.FreeCameraKey.Down())
             {
                 var camera = App.instance?.cameraManager?.gameCamera?.freeRoamCamera;
                 if (camera != null && camera.gameObject.activeSelf && Game.instance.sessionManager.isCircuitActive /*&& Game.instance.sessionManager.isSessionActive*/)
@@ -111,7 +116,7 @@ namespace ExtendedCamera
                 }
             }
 
-            if (Input.GetKeyDown(KeyCode.C))
+            if (settings.StickyCameraKey.Down())
             {
                 var camera = App.instance?.cameraManager?.gameCamera?.freeRoamCamera;
                 if (camera && camera.targetVehicle != null)
@@ -129,7 +134,7 @@ namespace ExtendedCamera
                 }
             }
 
-            if (Input.GetKeyDown(KeyCode.H))
+            if (settings.HideUIKey.Down())
             {
                 if (UIManager.instance.currentScreen is SessionHUD sessionHUD)
                 {
@@ -141,11 +146,6 @@ namespace ExtendedCamera
 
         static void OnGUI(UnityModManager.ModEntry modEntry)
         {
-            GUILayout.Label("Free camera: <b>X</b>");
-            GUILayout.Label("Sticky camera: <b>C</b>");
-            GUILayout.Label("Hide UI: <b>H</b>");
-            GUILayout.Space(5);
-
             settings.Draw(modEntry);
             
 #if DEBUG
