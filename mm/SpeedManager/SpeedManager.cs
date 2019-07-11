@@ -13,13 +13,16 @@ namespace SpeedManager
 {
     public class SpeedSet
     {
-        [Draw(Precision = 1, Min = 0), Space(5)] public float Frontend = 1f;
-        [Draw("Simulation 1", Precision = 1, Min = 0), Space(5)] public float Simulation1 = 20f;
-        [Draw("Simulation 2", Precision = 1, Min = 0)] public float Simulation2 = 30f;
-        [Draw("Simulation 3", Precision = 1, Min = 0)] public float Simulation3 = 40f;
-        [Draw("Race 1", Precision = 1, Min = 0), Space(5)] public float Race1 = 1f;
-        [Draw("Race 2", Precision = 1, Min = 0)] public float Race2 = 2f;
-        [Draw("Race 3", Precision = 1, Min = 0)] public float Race3 = 4f;
+        [Header("Frontend")]
+        [Draw("1", Precision = 1, Min = 0), Space(5)] public float Frontend = 1f;
+        [Header("Simulation"), Space(5)]
+        [Draw("1", Precision = 0, Min = 0)] public float Simulation1 = 20f;
+        [Draw("2", Precision = 0, Min = 0)] public float Simulation2 = 30f;
+        [Draw("3", Precision = 0, Min = 0)] public float Simulation3 = 40f;
+        [Header("OnTrack"), Space(5)]
+        [Draw("1", Precision = 2, Min = 0)] public float Race1 = 1f;
+        [Draw("2", Precision = 1, Min = 0)] public float Race2 = 2f;
+        [Draw("3", Precision = 1, Min = 0)] public float Race3 = 4f;
 
         public static SpeedSet Fast()
         {
@@ -31,13 +34,13 @@ namespace SpeedManager
 
     public class Settings : UnityModManager.ModSettings, IDrawable
     {
-        [Draw(DrawType.ToggleGroup)] public SpeedSets Set = SpeedSets.Fast;
-        [Draw("", VisibleOn = "Set|Fast")] public SpeedSet Fast = SpeedSet.Fast();
-        [Draw("", VisibleOn = "Set|Slow")] public SpeedSet Slow = new SpeedSet();
+        [Draw(DrawType.ToggleGroup)] public SpeedSets Preset = SpeedSets.Fast;
+        [Draw("", VisibleOn = "Preset|Fast")] public SpeedSet Fast = SpeedSet.Fast();
+        [Draw("", VisibleOn = "Preset|Slow")] public SpeedSet Slow = new SpeedSet();
 
         public void OnChange()
         {
-            Main.ApplySettings(Set);
+            Main.ApplySettings(Preset);
         }
 
         public override void Save(UnityModManager.ModEntry modEntry)
@@ -77,25 +80,17 @@ namespace SpeedManager
 
         static bool OnToggle(UnityModManager.ModEntry modEntry, bool value)
         {
-            try
+            if (value)
             {
-                if (value)
-                {
-                    ApplySettings(settings.Set);
-                }
-                else
-                {
-                    RestoreSettings();
-                }
+                ApplySettings(settings.Preset);
+            }
+            else
+            {
+                RestoreSettings();
+            }
 
-                enabled = value;
-                return true;
-            }
-            catch (Exception e)
-            {
-                modEntry.Logger.LogException(e);
-                return false;
-            }
+            enabled = value;
+            return true;
         }
 
         public static void ApplySettings(SpeedSets set)
@@ -151,7 +146,7 @@ namespace SpeedManager
 
             try
             {
-                Main.ApplySettings(Main.settings.Set);
+                Main.ApplySettings(Main.settings.Preset);
             }
             catch (Exception e)
             {

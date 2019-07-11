@@ -2,6 +2,7 @@
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Xml.Serialization;
 using Harmony;
 using UnityEngine;
 using UnityModManagerNet;
@@ -15,9 +16,11 @@ namespace ExtendedCamera
         [Draw(Precision = 0)] public float MaxZoom = 220f;
         [Draw(Precision = 0)] public float MinRotationY = 10f;
         [Draw(Precision = 0)] public float MaxRotationY = 80f;
-        [Draw] public float MouseSpeed = 0.05f;
-        [Draw] public float KeyboardSpeed = 3f;
+        [Draw(DrawType.Slider, Min = 1f, Max = 10f)] public float MouseSpeed = 5f;
+        [Draw(DrawType.Slider, Min = 1f, Max = 10f)] public float KeyboardSpeed = 5f;
         public float NearClip = 1f;
+        public float GetMouseSpeed => MouseSpeed * 0.01f;
+        public float GetKeyboardSpeed => KeyboardSpeed * 0.5f;
 
         public override void Save(UnityModManager.ModEntry modEntry)
         {
@@ -57,7 +60,6 @@ namespace ExtendedCamera
 #if DEBUG
             modEntry.OnUnload = Unload;
 #endif
-
             return true;
         }
 #if DEBUG
@@ -155,6 +157,12 @@ namespace ExtendedCamera
 
         public static void ApplySettings()
         {
+            if (Game.IsActive())
+            {
+                App.instance.preferencesManager.videoPreferences.SetExpandedCamera(true);
+                App.instance.preferencesManager.SetSetting(Preference.pName.Video_ExpandedCamera, true, false);
+            }
+
             var camera = App.instance?.cameraManager?.gameCamera?.GetCamera();
             if (camera)
             {
@@ -243,15 +251,16 @@ namespace ExtendedCamera
 
                 if (Input.GetMouseButton(1) && mDragDelayTimer >= dragInitialDelay && !(UIManager.instance.UIObjectsAtMousePosition.Count > 0))
                 {
+                    var zoom = Mathf.Lerp(__instance.cameraMaxZoom, __instance.cameraMinZoom, __instance.zoomNormalized);
                     var pos = Vector3.zero;
                     var transform = __instance.transform;
                     var position = transform.position;
                     var forward = transform.forward;
                     forward.y = 0;
-                    pos += forward.normalized * (-dragInfo.delta.y * Time.unscaledDeltaTime) * dragModifier * Main.settings.MouseSpeed * position.y;
+                    pos += forward.normalized * (-dragInfo.delta.y * Time.unscaledDeltaTime) * dragModifier * Main.settings.GetMouseSpeed * zoom;
                     var right = transform.right;
                     right.y = 0;
-                    pos += right.normalized * (-dragInfo.delta.x * Time.unscaledDeltaTime) * dragModifier * Main.settings.MouseSpeed * position.y;
+                    pos += right.normalized * (-dragInfo.delta.x * Time.unscaledDeltaTime) * dragModifier * Main.settings.GetMouseSpeed * zoom;
                     transform.parent.position += pos;
                 }
             }
@@ -276,7 +285,8 @@ namespace ExtendedCamera
                 {
                     var transform = __instance.transform;
                     var pos = Vector3.zero;
-                    var speed = Main.settings.KeyboardSpeed * transform.position.y * Time.unscaledDeltaTime;
+                    var zoom = Mathf.Lerp(__instance.cameraMaxZoom, __instance.cameraMinZoom, __instance.zoomNormalized);
+                    var speed = Main.settings.GetKeyboardSpeed * zoom * Time.unscaledDeltaTime;
                     if (Input.GetKey(KeyCode.W))
                     {
                         var dir = transform.forward;
