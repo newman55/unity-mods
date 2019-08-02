@@ -18,8 +18,9 @@ namespace AdvancedAI
     {
         public int SendtoHomeTreatmentChance = 70;
         public int QueueOrder = 1;
-        public bool SendtoHomeIfHospitalFull = true;
-        public bool SendtoHomeIfRoomNotExists = true;
+        public bool SendtoHomeIfHospitalFull;
+        public bool SendtoHomeIfRoomNotExists;
+        public bool TakeBreakAfterTraining = true;
 
         public override void Save(UnityModManager.ModEntry modEntry)
         {
@@ -77,7 +78,7 @@ namespace AdvancedAI
         static void OnGUI(UnityModManager.ModEntry modEntry)
         {
             GUILayout.BeginHorizontal();
-            GUILayout.Label("GP: Send to home if treatment chance less than (0-100) ", GUILayout.ExpandWidth(false));
+            GUILayout.Label("GP: Send home if treatment chance less than (0-100) (0: disabled) ", GUILayout.ExpandWidth(false));
             var inString = settings.SendtoHomeTreatmentChance.ToString();
             var outString = GUILayout.TextField(inString, 3, GUILayout.Width(50));
             if (outString != inString && int.TryParse(outString, out var result))
@@ -87,12 +88,12 @@ namespace AdvancedAI
             GUILayout.EndHorizontal();
 
             GUILayout.BeginHorizontal();
-            GUILayout.Label("GP: Send to home if room not exists ", GUILayout.ExpandWidth(false));
+            GUILayout.Label("GP: Send home if room does not exist ", GUILayout.ExpandWidth(false));
             settings.SendtoHomeIfRoomNotExists = GUILayout.Toggle(settings.SendtoHomeIfRoomNotExists, "", GUILayout.ExpandWidth(false));
             GUILayout.EndHorizontal();
 
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Reception: Send to home if GP offices is full ", GUILayout.ExpandWidth(false));
+            GUILayout.Label("Reception: Send home if GP offices are full (based on queue length warning) ", GUILayout.ExpandWidth(false));
             settings.SendtoHomeIfHospitalFull = GUILayout.Toggle(settings.SendtoHomeIfHospitalFull, "", GUILayout.ExpandWidth(false));
             GUILayout.EndHorizontal();
 
@@ -103,11 +104,16 @@ namespace AdvancedAI
             {
                 var value = settings.QueueOrder == i;
                 var @new = GUILayout.Toggle(value, queueOrder[i], GUILayout.ExpandWidth(false));
-                if (@new != value && @new == true)
+                if (@new != value && @new)
                 {
                     settings.QueueOrder = i;
                 }
             }
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Send staff on break after training ", GUILayout.ExpandWidth(false));
+            settings.TakeBreakAfterTraining = GUILayout.Toggle(settings.TakeBreakAfterTraining, "", GUILayout.ExpandWidth(false));
             GUILayout.EndHorizontal();
         }
 
@@ -145,50 +151,78 @@ namespace AdvancedAI
     {
         static bool Prefix(DiagnosisTreatmentComponent __instance, Patient patient, Staff ____doctor, Room ____room)
         {
-            if (!Main.enabled)
+            if (!Main.enabled || (Main.settings.SendtoHomeTreatmentChance == 0 && !Main.settings.SendtoHomeIfRoomNotExists))
                 return true;
 
-            Level level = patient.Level;
-            ResearchManager researchManager = level.ResearchManager;
-            if (____doctor.ModifiersComponent != null)
+            try
             {
-                ____doctor.ModifiersComponent.ApplyInteractWithOtherModifiers(patient);
-            }
-            float certainty = GameAlgorithms.GetDiagnosisCertainty(patient, ____room, ____doctor, researchManager).Certainty;
-            patient.ReceiveDiagnosis(____room, ____doctor, certainty);
-            ____room.OnUnitProcessed();
-            if (____room.Definition._type == RoomDefinition.Type.GPOffice)
-            {
-                if (patient.FullyDiagnosed())
+                Level level = patient.Level;
+                ResearchManager researchManager = level.ResearchManager;
+                if (____doctor.ModifiersComponent != null)
+                {
+                    ____doctor.ModifiersComponent.ApplyInteractWithOtherModifiers(patient);
+                }
+                float certainty = GameAlgorithms.GetDiagnosisCertainty(patient, ____room, ____doctor, researchManager).Certainty;
+                patient.ReceiveDiagnosis(____room, ____doctor, certainty);
+                ____room.OnUnitProcessed();
+                if (__instance.Level.HospitalPolicy.AutoSendForTreatment && patient.FullyDiagnosed())
                 {
                     var roomDef = patient.Illness.GetTreatmentRoom(patient, researchManager);
                     patient.SendToTreatmentRoom(roomDef, true);
-                    
-                    bool haveRoom = GameAlgorithms.DoesHospitalHaveRoom(patient.Level.WorldState, roomDef._type);
-                    var knownedIllness = patient.Level.GameplayStatsTracker.HasIllnessBeenDiagnosedBefore(patient.Illness);
-                    var treatmentChance = CalculateAverageTreatmentChance(patient, roomDef);
-                    if (knownedIllness && (haveRoom && treatmentChance < Main.settings.SendtoHomeTreatmentChance || !haveRoom && Main.settings.SendtoHomeIfRoomNotExists))
+                    bool flag = GameAlgorithms.DoesHospitalHaveRoom(patient.Level.WorldState, roomDef._type);
+                    bool flag2 = patient.Level.GameplayStatsTracker.HasIllnessBeenDiagnosedBefore(patient.Illness);
+                    float num = 100f;
+                    if (Main.settings.SendtoHomeTreatmentChance > 0)
                     {
-                        SendHome(patient);
-                        //Main.Logger.Log($"send to home {patient.Name} room {roomDef._type} diagnosis {patient.DiagnosisCertainty} treatment {treatmentChance}");
+                        num = patient.CalculateAverageTreatmentChance(roomDef);
+                    }
+                    if (flag2 && ((flag && num < (float)Main.settings.SendtoHomeTreatmentChance) || (!flag && Main.settings.SendtoHomeIfRoomNotExists)))
+                    {
+                        patient.SendHome();
+                    }
+                    return false;
+                }
+                else if (____room.Definition._type == RoomDefinition.Type.GPOffice)
+                {
+                    if (patient.FullyDiagnosed())
+                    {
+                        var roomDef = patient.Illness.GetTreatmentRoom(patient, researchManager);
+                        patient.SendToTreatmentRoom(roomDef, true);
+
+                        bool haveRoom = GameAlgorithms.DoesHospitalHaveRoom(patient.Level.WorldState, roomDef._type);
+                        var knownedIllness = patient.Level.GameplayStatsTracker.HasIllnessBeenDiagnosedBefore(patient.Illness);
+                        var treatmentChance = 100f;
+                        if (Main.settings.SendtoHomeTreatmentChance > 0)
+                        {
+                            treatmentChance = patient.CalculateAverageTreatmentChance(roomDef);
+                        }
+                        if (knownedIllness && (haveRoom && treatmentChance < Main.settings.SendtoHomeTreatmentChance || !haveRoom && Main.settings.SendtoHomeIfRoomNotExists))
+                        {
+                            patient.SendHome();
+                        }
+                    }
+                    else
+                    {
+                        patient.SendToDiagnosisRoom(Traverse.Create(__instance).Method("GetDiagnosisRoom", new Type[] { typeof(Patient), typeof(Staff) }).GetValue<Room>(patient, ____doctor));
                     }
                 }
                 else
                 {
-                    patient.SendToDiagnosisRoom(Traverse.Create(__instance).Method("GetDiagnosisRoom", new Type[] { typeof(Patient), typeof(Staff) }).GetValue<Room>(patient, ____doctor));
+                    Room bestRoomOfType = GameAlgorithms.GetBestRoomOfType(level.WorldState, RoomDefinition.Type.GPOffice, RoomUseType.Any, patient);
+                    if (bestRoomOfType != null)
+                    {
+                        patient.GotoRoom(bestRoomOfType, ReasonUseRoom.Diagnosis, false, -1);
+                    }
+                    else
+                    {
+                        patient.WaitForRoomToBeBuilt(RoomDefinition.Type.GPOffice, ReasonUseRoom.Diagnosis, GameAlgorithms.Config.PatientWaitLongTime);
+                    }
                 }
             }
-            else
+            catch (Exception ex)
             {
-                Room bestRoomOfType = GameAlgorithms.GetBestRoomOfType(level.WorldState, RoomDefinition.Type.GPOffice, patient);
-                if (bestRoomOfType != null)
-                {
-                    patient.GotoRoom(bestRoomOfType, ReasonUseRoom.Diagnosis, false, -1);
-                }
-                else
-                {
-                    patient.WaitForRoomToBeBuilt(RoomDefinition.Type.GPOffice, ReasonUseRoom.Diagnosis, GameAlgorithms.Config.PatientWaitLongTime);
-                }
+                Main.Logger.Error(ex.ToString());
+                return true;
             }
 
             return false;
@@ -276,18 +310,25 @@ namespace AdvancedAI
 
         static void Postfix(Room __instance, Staff staff)
         {
-            if (__instance.Definition.IsHospital)
-                return;
-
-            if (staff.Definition._type == StaffDefinition.Type.Doctor
-                || staff.Definition._type == StaffDefinition.Type.Nurse && !__instance.Definition.GetRequiredStaff().Exists(x => x.Definition._type == StaffDefinition.Type.Doctor))
+            try
             {
-                leaveHistory.Enqueue(new LeaveHistory { staffId = staff.ID, roomId = __instance.ID });
-            }
+                if (__instance.Definition.IsHospital)
+                    return;
 
-            var count = staff.Level.CharacterManager.StaffMembers.Count * 2;
-            while(leaveHistory.Count > count)
-                leaveHistory.Dequeue();
+                if (staff.Definition._type == StaffDefinition.Type.Doctor
+                    || staff.Definition._type == StaffDefinition.Type.Nurse && !__instance.Definition.GetRequiredStaff().Exists(x => x.Definition._type == StaffDefinition.Type.Doctor))
+                {
+                    leaveHistory.Enqueue(new LeaveHistory { staffId = staff.ID, roomId = __instance.ID });
+                }
+
+                var count = staff.Level.CharacterManager.StaffMembers.Count * 2;
+                while (leaveHistory.Count > count)
+                    leaveHistory.Dequeue();
+            }
+            catch (Exception ex)
+            {
+                Main.Logger.Error(ex.ToString());
+            }
         }
     }
 
@@ -299,9 +340,14 @@ namespace AdvancedAI
             if (!Main.enabled)
                 return true;
 
-//            Console.WriteLine($"GetFrontOfQueue {__instance.Definition._type} {__instance.Queue.Count}");
-            
-            __instance.Queue.Sort(Compare);
+            try
+            {
+                __instance.Queue.Sort(Compare);
+            }
+            catch (Exception ex)
+            {
+                Main.Logger.Error(ex.ToString());
+            }
 
             return true;
         }
@@ -376,21 +422,28 @@ namespace AdvancedAI
             if (!Main.enabled || !Main.settings.SendtoHomeIfHospitalFull)
                 return;
 
-            if (__result == TaskStatus.Success && ___Character.Get is Patient patient)
+            try
             {
-                var level = patient.Level;
-                level.WorldState.GetRoomsOfType(RoomDefinition.Type.GPOffice, false, _roomsCache);
-                int minQueueLength = int.MaxValue;
-                foreach (Room room in _roomsCache)
+                if (__result == TaskStatus.Success && ___Character.Get is Patient patient)
                 {
-                    if (minQueueLength > room.QueueLength)
-                        minQueueLength = room.QueueLength;
+                    var level = patient.Level;
+                    level.WorldState.GetRoomsOfType(RoomDefinition.Type.GPOffice, false, _roomsCache);
+                    int minQueueLength = int.MaxValue;
+                    foreach (Room room in _roomsCache)
+                    {
+                        if (room.IsOpen && minQueueLength > room.QueueLength)
+                            minQueueLength = room.QueueLength;
+                    }
+                    if (_roomsCache.Any() && minQueueLength >= level.HospitalPolicy.QueueWarningLength)
+                    {
+                        patient.SendHome();
+                    }
+                    _roomsCache.Clear();
                 }
-                if (_roomsCache.Any() && minQueueLength >= 5)
-                {
-                    DiagnosisTreatmentComponent_ProcessDiagnosis_Patch.SendHome(patient);
-                }
-                _roomsCache.Clear();
+            }
+            catch (Exception ex)
+            {
+                Main.Logger.Error(ex.ToString());
             }
         }
     }
@@ -400,24 +453,31 @@ namespace AdvancedAI
     {
         static void Postfix(AdvisorTriggerDiagnosisRoomRequired __instance, Patient patient)
         {
-            if (!Main.enabled)
+            if (!Main.enabled || Main.settings.SendtoHomeTreatmentChance == 0)
                 return;
 
-            if (!patient.FullyDiagnosed())
+            try
             {
-                Level level = patient.Level;
-                ResearchManager researchManager = level.ResearchManager;
-
-                var roomDef = patient.Illness.GetTreatmentRoom(patient, researchManager);
-                patient.SendToTreatmentRoom(roomDef, true);
-
-                bool haveRoom = GameAlgorithms.DoesHospitalHaveRoom(patient.Level.WorldState, roomDef._type);
-                var knownedIllness = patient.Level.GameplayStatsTracker.HasIllnessBeenDiagnosedBefore(patient.Illness);
-                var treatmentChance = patient.CalculateAverageTreatmentChance(roomDef);
-                if (knownedIllness && (treatmentChance < Main.settings.SendtoHomeTreatmentChance))
+                if (!patient.FullyDiagnosed())
                 {
-                    patient.SendHome();
+                    Level level = patient.Level;
+                    ResearchManager researchManager = level.ResearchManager;
+
+                    var roomDef = patient.Illness.GetTreatmentRoom(patient, researchManager);
+                    patient.SendToTreatmentRoom(roomDef, true);
+
+                    bool haveRoom = GameAlgorithms.DoesHospitalHaveRoom(patient.Level.WorldState, roomDef._type);
+                    var knownedIllness = patient.Level.GameplayStatsTracker.HasIllnessBeenDiagnosedBefore(patient.Illness);
+                    var treatmentChance = patient.CalculateAverageTreatmentChance(roomDef);
+                    if (knownedIllness && (treatmentChance < Main.settings.SendtoHomeTreatmentChance))
+                    {
+                        patient.SendHome();
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                Main.Logger.Error(ex.ToString());
             }
         }
     }
@@ -427,7 +487,7 @@ namespace AdvancedAI
     {
         static void Postfix(RoomLogicTrainingRoom __instance, Staff staff)
         {
-            if (!Main.enabled)
+            if (!Main.enabled || !Main.settings.TakeBreakAfterTraining)
                 return;
 
             staff.TakeBreak();
