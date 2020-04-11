@@ -18,8 +18,8 @@ namespace AdvancedAI
     {
         public int SendtoHomeTreatmentChance = 70;
         public int QueueOrder = 1;
-        public bool SendtoHomeIfHospitalFull;
-        public bool SendtoHomeIfRoomNotExists;
+        public bool SendtoHomeIfHospitalFull = false;
+        public bool SendtoHomeIfRoomNotExists = false;
         public bool TakeBreakAfterTraining = true;
 
         public override void Save(UnityModManager.ModEntry modEntry)
@@ -78,7 +78,7 @@ namespace AdvancedAI
         static void OnGUI(UnityModManager.ModEntry modEntry)
         {
             GUILayout.BeginHorizontal();
-            GUILayout.Label("GP: Send home if treatment chance less than (0-100) (0: disabled) ", GUILayout.ExpandWidth(false));
+            GUILayout.Label("GP: Send home if treatment chance less than (0(disabled)-100) ", GUILayout.ExpandWidth(false));
             var inString = settings.SendtoHomeTreatmentChance.ToString();
             var outString = GUILayout.TextField(inString, 3, GUILayout.Width(50));
             if (outString != inString && int.TryParse(outString, out var result))
@@ -100,11 +100,11 @@ namespace AdvancedAI
             GUILayout.BeginHorizontal();
             GUILayout.Label("Queue order: ", GUILayout.ExpandWidth(false));
 
-            for(int i = 0; i < queueOrder.Length; i++)
+            for (int i = 0; i < queueOrder.Length; i++)
             {
                 var value = settings.QueueOrder == i;
                 var @new = GUILayout.Toggle(value, queueOrder[i], GUILayout.ExpandWidth(false));
-                if (@new != value && @new)
+                if (@new != value && @new == true)
                 {
                     settings.QueueOrder = i;
                 }
@@ -153,7 +153,6 @@ namespace AdvancedAI
         {
             if (!Main.enabled || (Main.settings.SendtoHomeTreatmentChance == 0 && !Main.settings.SendtoHomeIfRoomNotExists))
                 return true;
-
             try
             {
                 Level level = patient.Level;
@@ -168,21 +167,21 @@ namespace AdvancedAI
                 if (__instance.Level.HospitalPolicy.AutoSendForTreatment && patient.FullyDiagnosed())
                 {
                     var roomDef = patient.Illness.GetTreatmentRoom(patient, researchManager);
-                    patient.SendToTreatmentRoom(roomDef, true);
-                    bool flag = GameAlgorithms.DoesHospitalHaveRoom(patient.Level.WorldState, roomDef._type);
-                    bool flag2 = patient.Level.GameplayStatsTracker.HasIllnessBeenDiagnosedBefore(patient.Illness);
-                    float num = 100f;
+                    patient.SendToTreatmentRoom(roomDef, immediately: true);
+                    bool haveRoom = GameAlgorithms.DoesHospitalHaveRoom(patient.Level.WorldState, roomDef._type);
+                    var knownnIllness = patient.Level.GameplayStatsTracker.HasIllnessBeenDiagnosedBefore(patient.Illness);
+                    var treatmentChance = 100f; //this is just so the check against send home on treatmeant chance is always false if it's set to 0 (disabled)
+
                     if (Main.settings.SendtoHomeTreatmentChance > 0)
+                        treatmentChance = CalculateAverageTreatmentChance(patient, roomDef);
+                    if (knownnIllness && (haveRoom && treatmentChance < Main.settings.SendtoHomeTreatmentChance || !haveRoom && Main.settings.SendtoHomeIfRoomNotExists))
                     {
-                        num = patient.CalculateAverageTreatmentChance(roomDef);
-                    }
-                    if (flag2 && ((flag && num < (float)Main.settings.SendtoHomeTreatmentChance) || (!flag && Main.settings.SendtoHomeIfRoomNotExists)))
-                    {
-                        patient.SendHome();
+                        SendHome(patient);
+                        //Main.Logger.Log($"send home {patient.Name} room {roomDef._type} diagnosis {patient.DiagnosisCertainty} treatment {treatmentChance} room exists {haveRoom}");
                     }
                     return false;
                 }
-                else if (____room.Definition._type == RoomDefinition.Type.GPOffice)
+                if (____room.Definition._type == RoomDefinition.Type.GPOffice)
                 {
                     if (patient.FullyDiagnosed())
                     {
@@ -190,15 +189,15 @@ namespace AdvancedAI
                         patient.SendToTreatmentRoom(roomDef, true);
 
                         bool haveRoom = GameAlgorithms.DoesHospitalHaveRoom(patient.Level.WorldState, roomDef._type);
-                        var knownedIllness = patient.Level.GameplayStatsTracker.HasIllnessBeenDiagnosedBefore(patient.Illness);
-                        var treatmentChance = 100f;
+                        var knownnIllness = patient.Level.GameplayStatsTracker.HasIllnessBeenDiagnosedBefore(patient.Illness);
+                        var treatmentChance = 100f; //this is just so the check against send home on treatmeant chance is always false if it's set to 0 (disabled)
+
                         if (Main.settings.SendtoHomeTreatmentChance > 0)
+                            treatmentChance = CalculateAverageTreatmentChance(patient, roomDef);
+                        if (knownnIllness && (haveRoom && treatmentChance < Main.settings.SendtoHomeTreatmentChance || !haveRoom && Main.settings.SendtoHomeIfRoomNotExists))
                         {
-                            treatmentChance = patient.CalculateAverageTreatmentChance(roomDef);
-                        }
-                        if (knownedIllness && (haveRoom && treatmentChance < Main.settings.SendtoHomeTreatmentChance || !haveRoom && Main.settings.SendtoHomeIfRoomNotExists))
-                        {
-                            patient.SendHome();
+                            SendHome(patient);
+                            //Main.Logger.Log($"send home {patient.Name} room {roomDef._type} diagnosis {patient.DiagnosisCertainty} treatment {treatmentChance} room exists {haveRoom}");
                         }
                     }
                     else
@@ -219,12 +218,11 @@ namespace AdvancedAI
                     }
                 }
             }
-            catch (Exception ex)
+            catch (Exception e)
             {
-                Main.Logger.Error(ex.ToString());
+                Main.Logger.Error(e.ToString());
                 return true;
             }
-
             return false;
         }
 
@@ -241,7 +239,7 @@ namespace AdvancedAI
                     Traverse.Create(obj).Field("LeaveNow").SetValue(true);
                 }
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 Main.Logger.Error(e.ToString());
             }
@@ -284,7 +282,7 @@ namespace AdvancedAI
                         chanceOfSuccess += breakdown.ChanceOfSuccess;
                         count++;
                     }
-                    catch(Exception e)
+                    catch (Exception e)
                     {
                         Main.Logger.Error(e.ToString());
                     }
@@ -310,25 +308,18 @@ namespace AdvancedAI
 
         static void Postfix(Room __instance, Staff staff)
         {
-            try
-            {
-                if (__instance.Definition.IsHospital)
-                    return;
+            if (__instance.Definition.IsHospital)
+                return;
 
-                if (staff.Definition._type == StaffDefinition.Type.Doctor
-                    || staff.Definition._type == StaffDefinition.Type.Nurse && !__instance.Definition.GetRequiredStaff().Exists(x => x.Definition._type == StaffDefinition.Type.Doctor))
-                {
-                    leaveHistory.Enqueue(new LeaveHistory { staffId = staff.ID, roomId = __instance.ID });
-                }
-
-                var count = staff.Level.CharacterManager.StaffMembers.Count * 2;
-                while (leaveHistory.Count > count)
-                    leaveHistory.Dequeue();
-            }
-            catch (Exception ex)
+            if (staff.Definition._type == StaffDefinition.Type.Doctor
+                || staff.Definition._type == StaffDefinition.Type.Nurse && !__instance.Definition.GetRequiredStaff().Exists(x => x.Definition._type == StaffDefinition.Type.Doctor))
             {
-                Main.Logger.Error(ex.ToString());
+                leaveHistory.Enqueue(new LeaveHistory { staffId = staff.ID, roomId = __instance.ID });
             }
+
+            var count = staff.Level.CharacterManager.StaffMembers.Count * 2;
+            while (leaveHistory.Count > count)
+                leaveHistory.Dequeue();
         }
     }
 
@@ -340,14 +331,7 @@ namespace AdvancedAI
             if (!Main.enabled)
                 return true;
 
-            try
-            {
-                __instance.Queue.Sort(Compare);
-            }
-            catch (Exception ex)
-            {
-                Main.Logger.Error(ex.ToString());
-            }
+            __instance.Queue.Sort(Compare);
 
             return true;
         }
@@ -380,7 +364,7 @@ namespace AdvancedAI
                 return 0;
             }
 
-            if (Main.settings.QueueOrder == 1)
+            if (Main.settings.QueueOrder == 1) //Health
             {
                 if ((l is Patient lp) && (r is Patient rp))
                 {
@@ -396,7 +380,7 @@ namespace AdvancedAI
                     }
                 }
             }
-            else if (Main.settings.QueueOrder == 2)
+            else if (Main.settings.QueueOrder == 2) //Time in hospital
             {
                 if (l.TotalTimeInHospital > r.TotalTimeInHospital)
                 {
@@ -411,7 +395,7 @@ namespace AdvancedAI
             return 0;
         }
     }
-     
+
     [HarmonyPatch(typeof(ReceptionistSeePatient), "OnUpdate")]
     static class ReceptionistSeePatient_OnUpdate_Patch
     {
@@ -421,7 +405,6 @@ namespace AdvancedAI
         {
             if (!Main.enabled || !Main.settings.SendtoHomeIfHospitalFull)
                 return;
-
             try
             {
                 if (__result == TaskStatus.Success && ___Character.Get is Patient patient)
@@ -431,19 +414,21 @@ namespace AdvancedAI
                     int minQueueLength = int.MaxValue;
                     foreach (Room room in _roomsCache)
                     {
-                        if (room.IsOpen && minQueueLength > room.QueueLength)
+                        if (!room.IsOpen) continue;
+                        if (minQueueLength > room.QueueLength)
                             minQueueLength = room.QueueLength;
                     }
                     if (_roomsCache.Any() && minQueueLength >= level.HospitalPolicy.QueueWarningLength)
                     {
-                        patient.SendHome();
+                        //Main.Logger.Log($"send home {patient.Name} min Queue Length {minQueueLength}");
+                        DiagnosisTreatmentComponent_ProcessDiagnosis_Patch.SendHome(patient);
                     }
                     _roomsCache.Clear();
                 }
             }
-            catch (Exception ex)
+            catch (Exception e)
             {
-                Main.Logger.Error(ex.ToString());
+                Main.Logger.Error(e.ToString());
             }
         }
     }
@@ -455,7 +440,6 @@ namespace AdvancedAI
         {
             if (!Main.enabled || Main.settings.SendtoHomeTreatmentChance == 0)
                 return;
-
             try
             {
                 if (!patient.FullyDiagnosed())
@@ -475,9 +459,9 @@ namespace AdvancedAI
                     }
                 }
             }
-            catch (Exception ex)
+            catch (Exception e)
             {
-                Main.Logger.Error(ex.ToString());
+                Main.Logger.Error(e.ToString());
             }
         }
     }
@@ -493,4 +477,109 @@ namespace AdvancedAI
             staff.TakeBreak();
         }
     }
+
+    //[HarmonyPatch(typeof(GameAlgorithms), "FindBestNeedInteractionWithinRadius")]
+    //static class GameAlgorithms_FindBestNeedInteractionWithinRadius_Patch
+    //{
+    //    static bool Prefix(Character character, int needIndex, Vector3 characterPosition, float radius, out ObjectInteraction interactionOut, out Room roomOut)
+    //    {
+    //        roomOut = null;
+    //        interactionOut = null;
+    //        if (!Main.enabled)
+    //            return true;
+    //        try
+    //        {
+    //            float num = float.MaxValue;
+    //            Room roomUsing = character.RoomUsing;
+    //            int queuePosition = character.GetQueuePosition();
+    //            NavMesh navMesh = character.Level.WorldState.NavMesh;
+    //            List<KeyValuePair<RoomItem, float>>[] needSatisfyingRoomItems = character.Level.WorldState.NeedSatisfyingRoomItems;
+
+    //            foreach (KeyValuePair<RoomItem, float> item in needSatisfyingRoomItems[needIndex])
+    //            {
+    //                RoomItem key = item.Key;
+    //                if (CharacterCanUseInteractionsInRoom(character, key.OwningRoom) && key.IsFunctional() && key.Definition.ValidQueuePositionForNeed(queuePosition))
+    //                {
+    //                    Room owningRoom = key.OwningRoom;
+    //                    foreach (ObjectInteraction interaction in key.Interactions)
+    //                    {
+    //                        float pathDistance;
+    //                        if (interaction.Type == InteractionAttributeModifier.Type.Use && interaction.Valid && (radius <= 0f || Vector3.Distance(characterPosition, interaction.WorldStartPosition) <= radius) && InteractionAlgorithms.InteractionReachable(navMesh, characterPosition, interaction.WorldStartPosition, roomUsing, owningRoom, out pathDistance) && pathDistance <= radius)
+    //                        {
+    //                            bool isInSamePlot = true;
+    //                            if (character is Staff)
+    //                            {
+    //                                var roomPlot = character.Level.WorldState.GetHospitalPlotFromRoom(owningRoom);
+    //                                if (roomPlot != null)
+    //                                {
+    //                                    Main.Logger.Log($"need {Enum.GetName(typeof(CharacterAttributes.Type), needIndex)} room {owningRoom.GetRoomName()} room plot {roomPlot.Definition.NameLocalised}");
+    //                                    var map = character.Level.WorldState.GetHospitalMapAtWorldPosition(character.Position);
+    //                                    if (map != null)
+    //                                    {
+    //                                        var staffPlot = map.Plot;                                            
+    //                                        isInSamePlot = roomPlot == staffPlot;
+    //                                        Main.Logger.Log($"staff {character.Name} staff plot {staffPlot.Definition.NameLocalised} samePlot {isInSamePlot}");
+    //                                    }
+    //                                }
+
+    //                            }
+    //                            if (isInSamePlot)
+    //                            {
+    //                                float value = item.Value;
+    //                                float num2 = pathDistance / value;
+    //                                if (interaction.IsAvailable(character))
+    //                                {
+    //                                    num2 *= GameAlgorithms.Config.NeedScoreInteractionAvailable;
+    //                                }
+    //                                int queueLength = interaction.GetQueueLength();
+    //                                if (queueLength != 0)
+    //                                {
+    //                                    num2 *= (float)queueLength * GameAlgorithms.Config.NeedScoreQueueLengthMultiplier;
+    //                                }
+    //                                if (owningRoom != roomUsing)
+    //                                {
+    //                                    num2 *= GameAlgorithms.Config.NeedScoreInDifferentRoomMultiplier;
+    //                                }
+    //                                if (num2 <= num)
+    //                                {
+    //                                    num = num2;
+    //                                    interactionOut = interaction;
+    //                                    roomOut = key.OwningRoom;
+    //                                }
+    //                            }
+    //                        }
+    //                    }
+    //                }
+    //            }
+    //        }
+    //        catch (Exception e)
+    //        {
+    //            Main.Logger.Error(e.ToString());
+    //            return true;
+    //        }
+    //        if (roomOut == null)
+    //            return true;
+    //        return false;
+    //    }
+    //    private static bool CharacterCanUseInteractionsInRoom(Character character, Room room)
+    //    {
+    //        if (room == null || !room.IsOpen)
+    //        {
+    //            return false;
+    //        }
+    //        if (room.WhoCanUse.IsMember(character) && (room.Definition.IsHospital || (!room.IsAtMaxCapacity() && room.FloorPlan.Door != null)))
+    //        {
+    //            if (room.Definition._allowPatientsNeedsSatisfaction && character is Patient)
+    //            {
+    //                return true;
+    //            }
+    //            Staff staff = character as Staff;
+    //            if (staff != null && (room.Definition._allowStaffNeedsSatisfaction || room.IsStaffMember(staff)) && (!staff.IsIdleInWorkRoom() || room == staff.RoomUsing))
+    //            {
+    //                return true;
+    //            }
+    //        }
+    //        return false;
+    //    }
+    //}
 }
