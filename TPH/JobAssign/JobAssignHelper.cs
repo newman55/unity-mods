@@ -11,12 +11,13 @@ using TH20;
 using FullInspector;
 using TMPro;
 using System.Xml.Serialization;
+using TH20.UI;
 
 namespace JobAssign
 {
-	public class Settings : UnityModManager.ModSettings
-	{
-		public bool UnassignJobsOnHire = false;
+    public class Settings : UnityModManager.ModSettings
+    {
+        public bool UnassignJobsOnHire = false;
         public bool AssignJobsOnTrainingComplete = false;
 
         public List<RoomDefinition.Type> TreatmentRooms = new List<RoomDefinition.Type>
@@ -27,6 +28,8 @@ namespace JobAssign
             RoomDefinition.Type.ClinicVI10, RoomDefinition.Type.EightBitClinic, RoomDefinition.Type.PandemicClinic,
             RoomDefinition.Type.FrankensteinClinic, RoomDefinition.Type.DogClinic, RoomDefinition.Type.RobotMonsterClinic,
             RoomDefinition.Type.BlankLooksClinic, RoomDefinition.Type.EightBallClinic, RoomDefinition.Type.ExplorerClinic,
+            RoomDefinition.Type.CardboardClinic, RoomDefinition.Type.FrogClinic, RoomDefinition.Type.AstroClinic,
+            RoomDefinition.Type.PinocchioClinic, RoomDefinition.Type.ScarecrowClinic, RoomDefinition.Type.TechClinic, RoomDefinition.Type.PlantWardClinic,
         };
 
         public List<RoomDefinition.Type> DiagnosisRooms = new List<RoomDefinition.Type>
@@ -81,39 +84,39 @@ namespace JobAssign
         };
 
         public override void Save(UnityModManager.ModEntry modEntry)
-		{
-			Save(this, modEntry);
-		}
-	}
+        {
+            Save(this, modEntry);
+        }
+    }
 
-	static class Main
-	{
-		public static bool enabled;
-		public static Settings settings;
-		public static UnityModManager.ModEntry.ModLogger Logger;
+    static class Main
+    {
+        public static bool enabled;
+        public static Settings settings;
+        public static UnityModManager.ModEntry.ModLogger Logger;
 
-		static bool Load(UnityModManager.ModEntry modEntry)
-		{
-			var harmony = HarmonyInstance.Create(modEntry.Info.Id);
-			harmony.PatchAll(Assembly.GetExecutingAssembly());
+        static bool Load(UnityModManager.ModEntry modEntry)
+        {
+            var harmony = HarmonyInstance.Create(modEntry.Info.Id);
+            harmony.PatchAll(Assembly.GetExecutingAssembly());
 
-			settings = Settings.Load<Settings>(modEntry);
+            settings = Settings.Load<Settings>(modEntry);
 
-			Logger = modEntry.Logger;
+            Logger = modEntry.Logger;
 
-			modEntry.OnToggle = OnToggle;
-			modEntry.OnGUI = OnGUI;
-			modEntry.OnSaveGUI = OnSaveGUI;
+            modEntry.OnToggle = OnToggle;
+            modEntry.OnGUI = OnGUI;
+            modEntry.OnSaveGUI = OnSaveGUI;
 
             return true;
-		}
+        }
 
         static bool OnToggle(UnityModManager.ModEntry modEntry, bool value)
-		{
-			enabled = value;
+        {
+            enabled = value;
 
-			return true;
-		}
+            return true;
+        }
 
         static IEnumerable<RoomDefinition.Type> _roomDefinitionValues = ((IEnumerable<RoomDefinition.Type>)Enum.GetValues(typeof(RoomDefinition.Type)));
         static RoomDefinition.Type _lastRoomDefinitionValue = (RoomDefinition.Type)((IEnumerable<int>)_roomDefinitionValues).Max();
@@ -122,8 +125,8 @@ namespace JobAssign
         static JobMaintenance.JobDescription _lastJobDescription = (JobMaintenance.JobDescription)((IEnumerable<int>)_jobDescriptionValues).Max();
 
         static void OnGUI(UnityModManager.ModEntry modEntry)
-		{
-			settings.UnassignJobsOnHire = GUILayout.Toggle(settings.UnassignJobsOnHire, " Unassign jobs when hiring.");
+        {
+            settings.UnassignJobsOnHire = GUILayout.Toggle(settings.UnassignJobsOnHire, " Unassign jobs when hiring.");
             settings.AssignJobsOnTrainingComplete = GUILayout.Toggle(settings.AssignJobsOnTrainingComplete, " Assign jobs when training complete.");
 
             GUILayout.Space(10);
@@ -240,24 +243,24 @@ namespace JobAssign
             }
         }
 
-		static void OnSaveGUI(UnityModManager.ModEntry modEntry)
-		{
+        static void OnSaveGUI(UnityModManager.ModEntry modEntry)
+        {
             settings.TreatmentRooms = settings.TreatmentRooms.Distinct().ToList();
             settings.DiagnosisRooms = settings.DiagnosisRooms.Distinct().ToList();
             settings.CustomerServiceRooms = settings.CustomerServiceRooms.Distinct().ToList();
             settings.MaintenanceJobs = settings.MaintenanceJobs.Distinct().ToList();
             settings.MiscJobs = settings.MiscJobs.Distinct().ToList();
             settings.Save(modEntry);
-		}
+        }
     }
 
-	[HarmonyPatch(typeof(HospitalEventStaffHired.Config), "OnStaffHiredEvent")]
-	static class HospitalEventStaffHired_OnStaffHiredEvent_Patch
-	{
-		static void Postfix(HospitalEventStaffHired.Config __instance, Staff staff, JobApplicant applicant)
-		{
-			if (!Main.enabled || !Main.settings.UnassignJobsOnHire)
-				return;
+    [HarmonyPatch(typeof(HospitalEventStaffHired.Config), "OnStaffHiredEvent")]
+    static class HospitalEventStaffHired_OnStaffHiredEvent_Patch
+    {
+        static void Postfix(HospitalEventStaffHired.Config __instance, Staff staff, JobApplicant applicant)
+        {
+            if (!Main.enabled || !Main.settings.UnassignJobsOnHire)
+                return;
 
             try
             {
@@ -268,12 +271,12 @@ namespace JobAssign
                 staff.JobExclusions.Clear();
                 staff.JobExclusions.AddRange(jobs);
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 Main.Logger.Error(e.ToString());
             }
-		}
-	}
+        }
+    }
 
     [HarmonyPatch(typeof(HospitalEventTraineeCompletedCourse.Config), "OnStaffQualificationComplete")]
     static class HospitalEventTraineeCompletedCourse_OnStaffQualificationComplete_Patch
@@ -308,41 +311,40 @@ namespace JobAssign
         }
     }
 
+
     [HarmonyPatch(typeof(StaffMenuJobAssignRow), "Setup")]
-	static class StaffMenuJobAssignRow_Setup_Patch
-	{
-		static bool Prefix(StaffMenuJobAssignRow __instance, Staff staff, List<JobDescription> jobs, GameObject ____jobTogglePrefab,
-			QualificationIcons ___QualificationIcons)
-		{
-			if (!Main.enabled)
-				return true;
+    static class StaffMenuJobAssignRow_Setup_Patch
+    {
+        static bool Prefix(StaffMenuJobAssignRow __instance, Staff staff, List<JobDescription> jobs, StaffMenu staffMenu, GameObject ____jobTogglePrefab,
+            QualificationIcons ___QualificationIcons)
+        {
+            if (!Main.enabled)
+                return true;
 
-			____jobTogglePrefab.GetOrAddComponent<JobAssignToggle>();
+            if (staff == null)
+                return true;
 
-			if (staff == null)
-				return true;
-
-			try
-			{
-				var icons = Traverse.Create(___QualificationIcons).Field("_qualificationImages").GetValue<Image[]>();
-				for (int i = 0; i < icons.Length; i++)
-				{
-					var button = icons[i].gameObject.GetOrAddComponent<Button>();
-                    //button.enabled = staff.Definition._type == StaffDefinition.Type.Doctor || staff.Definition._type == StaffDefinition.Type.Nurse;
+            try
+            {
+                var icons = Traverse.Create(___QualificationIcons).Field("_qualificationImages").GetValue<Image[]>();
+                for (int i = 0; i < icons.Length; i++)
+                {
+                    var button = icons[i].gameObject.GetOrAddComponent<Button>();
                     button.enabled = true;
                     var obj = icons[i].gameObject.GetOrAddComponent<JobAssignQualificationToggle>();
-					obj.staff = staff;
-					obj.id = i;
-				}
-			}
-			catch (Exception e)
-			{
-				Main.Logger.Error(e.ToString());
-			}
+                    obj.staff = staff;
+                    obj.staffMenu = staffMenu;
+                    obj.id = i;
+                }
+            }
+            catch (Exception e)
+            {
+                Main.Logger.Error(e.ToString());
+            }
 
-			return true;
-		}
-	}
+            return true;
+        }
+    }
 
     [HarmonyPatch(typeof(StaffMenu), "CreateJobIcons")]
     static class StaffMenu_CreateJobIcons_Patch
@@ -422,7 +424,7 @@ namespace JobAssign
                     }
                     else if (job is JobUpgradeDescription)
                     {
-                        int num2 = 0;
+                        int upgradeCount = 0;
                         string machinesForUpgarde = "";
                         foreach (Room room in ____worldState.AllRooms)
                         {
@@ -431,7 +433,7 @@ namespace JobAssign
                                 RoomItemUpgradeDefinition nextUpgrade = roomItem.Definition.GetNextUpgrade(roomItem.UpgradeLevel);
                                 if (nextUpgrade != null && roomItem.Level.Metagame.HasUnlocked(nextUpgrade) && roomItem.GetComponent<RoomItemUpgradeComponent>() == null)
                                 {
-                                    num2++;
+                                    upgradeCount++;
                                     machinesForUpgarde = machinesForUpgarde + "\n" + roomItem.Name;
                                 }
                             }
@@ -454,7 +456,7 @@ namespace JobAssign
                                 });
                             }
                         }
-                        component.text = staffCount.ToString() + "/" + num2;
+                        component.text = staffCount.ToString() + "/" + upgradeCount;
                     }
                     else
                     {
@@ -485,66 +487,97 @@ namespace JobAssign
             }
         }
     }
-
+    /// <summary>
+    /// controls left clicking on the job qualification icon
+    /// left clicking on a qualification will toggle jobs so only those related to that qualification are assigned
+    /// middle of shift-click any qualification toggles on matching jobs for all qualifications
+    /// </summary>
     public class JobAssignQualificationToggle : MonoBehaviour, IPointerClickHandler
-	{
-		public Staff staff;
-		public int id;
+    {
+        public Staff staff;
+        public StaffMenu staffMenu;
+        public int id;
 
-		public void OnPointerClick(PointerEventData e)
-		{
-			if (!Main.enabled || staff == null || staff.Qualifications.Count <= id)
-				return;
+        public void OnPointerClick(PointerEventData e)
+        {
+            if (!Main.enabled || staff == null || staff.Qualifications.Count <= id)
+                return;
+            try
+            {
+                var jobToggles = Traverse.Create(GetComponentInParent<StaffMenuJobAssignRow>()).Field("_jobToggles").GetValue<List<StaffJobToggle>>();
+                if (jobToggles.Count == 0)
+                    return;
 
-			try
-			{
-				var jobToggles = Traverse.Create(GetComponentInParent<StaffMenuJobAssignRow>()).Field("_jobToggles").GetValue<List<StaffJobToggle>>();
-				if (jobToggles.Count == 0)
-					return;
-
-				if (e.button == PointerEventData.InputButton.Left)
-				{
-					var recommendedRooms = staff.GetRecommendedJobRooms(staff.Qualifications[id]);
-
-					if (recommendedRooms.Count > 0)
-					{
-						foreach (var obj in jobToggles)
-						{
-							var toggle = obj.GetComponent<Toggle>();
-							if (toggle.interactable && obj.Job is JobRoomDescription description)
-							{
-								toggle.isOn = recommendedRooms.Exists(x => x == description.Room._type);
-							}
-                            else if (staff.Definition._type == StaffDefinition.Type.Assistant && toggle.interactable && obj.Job is JobItemDescription)
-                            {
-                                toggle.isOn = (staff.Qualifications[id].Definition.Modifiers.Count((CharacterModifier m) => m is QualificationServiceModifier) > 0);
-                            }
-                        }
-                    }
-                    List<JobMaintenance.JobDescription> recommendedJobs = staff.GetRecommendedJobs(staff.Qualifications[id]);
-                    if (recommendedJobs.Count > 0)
+                if (e.button == PointerEventData.InputButton.Left)
+                {
+                    if (Input.GetKey(KeyCode.LeftShift))
                     {
-                        foreach (var obj in jobToggles)
+                        ToggleAllQualifications(jobToggles);
+                    }
+                    else
+                    {
+                        var recommendedRooms = staff.GetRecommendedJobRooms(staff.Qualifications[id]);
+                        if (recommendedRooms.Count > 0)
                         {
-                            var toggle = obj.GetComponent<Toggle>();
-                            JobMaintenanceDescription description;
-                            if (toggle.interactable && (description = (obj.Job as JobMaintenanceDescription)) != null)
+                            foreach (var obj in jobToggles)
                             {
-                                toggle.isOn = recommendedJobs.Exists((JobMaintenance.JobDescription x) => x == description.Description);
+                                var toggle = obj.GetComponent<Toggle>();
+                                if (toggle.interactable && obj.Job is JobRoomDescription description)
+                                {
+                                    if (recommendedRooms.Exists(x => x == description.Room._type))
+                                        staff.JobExclusions.Remove(description);
+                                    else
+                                        staff.JobExclusions.AddUnique(description);
+                                }
+                                else if (staff.Definition._type == StaffDefinition.Type.Assistant && toggle.interactable && obj.Job is JobItemDescription)
+                                {
+                                    if (staff.Qualifications[id].Definition.Modifiers.Count((CharacterModifier m) => m is QualificationServiceModifier) > 0)
+                                        staff.JobExclusions.Remove(obj.Job);
+                                    else
+                                        staff.JobExclusions.AddUnique(obj.Job);
+                                }
                             }
-                            else if (toggle.interactable && obj.Job is JobGhostDescription)
+                        }
+
+                        List<JobMaintenance.JobDescription> recommendedJobs = staff.GetRecommendedJobs(staff.Qualifications[id]);
+                        if (recommendedJobs.Count > 0)
+                        {
+                            foreach (var obj in jobToggles)
                             {
-                                toggle.isOn = recommendedJobs.Exists((JobMaintenance.JobDescription x) => x == JobMaintenance.JobDescription.Ghost);
-                            }
-                            else if (toggle.interactable && obj.Job is JobUpgradeDescription)
-                            {
-                                toggle.isOn = recommendedJobs.Exists((JobMaintenance.JobDescription x) => x == JobMaintenance.JobDescription.Max);
+                                var toggle = obj.GetComponent<Toggle>();
+                                JobMaintenanceDescription description;
+                                if (toggle.interactable && (description = (obj.Job as JobMaintenanceDescription)) != null)
+                                {
+                                    if (recommendedJobs.Exists((JobMaintenance.JobDescription x) => x == description.Description))
+                                        staff.JobExclusions.Remove(description);
+                                    else
+                                        staff.JobExclusions.AddUnique(description);
+                                }
+                                else if (toggle.interactable && obj.Job is JobGhostDescription)
+                                {
+                                    if (recommendedJobs.Exists((JobMaintenance.JobDescription x) => x == JobMaintenance.JobDescription.Ghost))
+                                        staff.JobExclusions.Remove(obj.Job);
+                                    else
+                                        staff.JobExclusions.AddUnique(obj.Job);
+                                }
+                                else if (toggle.interactable && obj.Job is JobUpgradeDescription)
+                                {
+                                    if (recommendedJobs.Exists((JobMaintenance.JobDescription x) => x == JobMaintenance.JobDescription.Max))
+                                        staff.JobExclusions.Remove(obj.Job);
+                                    else
+                                        staff.JobExclusions.AddUnique(obj.Job);
+                                }
                             }
                         }
                     }
-                    StaffMenu staffMenu = staff.Level.HUD.FindMenu<StaffMenu>(true);
                     if (staffMenu != null)
                     {
+                        var p = staffMenu.GetType().GetField("_staffMenuRowProvider", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).GetValue(staffMenu);
+                        if (p is StaffMenuRowProvider provider)
+                        {
+                            provider.RefreshRowJobs();
+                        }
+
                         MethodInfo method = staffMenu.GetType().GetMethod("CreateJobIcons", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
                         if (method != null)
                         {
@@ -553,92 +586,112 @@ namespace JobAssign
                                 staff.Definition._type
                             });
                         }
-					}
-				}
-			}
-			catch (Exception exception)
-			{
-				Main.Logger.Error(exception.ToString());
-			}
-		}
-	}
-
-	public class JobAssignToggle : MonoBehaviour, IPointerClickHandler
-	{
-		public void OnPointerClick(PointerEventData e)
-		{
-			if (!Main.enabled)
-				return;
-
-			try
-			{
-				var jobToggles = Traverse.Create(GetComponentInParent<StaffMenuJobAssignRow>()).Field("_jobToggles").GetValue<List<StaffJobToggle>>();
-				if (jobToggles.Count == 0)
-					return;
-
-                var staff = Traverse.Create(jobToggles.First()).Field("_staff").GetValue<Staff>();
-                if (e.button == PointerEventData.InputButton.Right)
-				{
-					var toggle = GetComponent<Toggle>();
-					if (toggle.interactable)
-					{
-						foreach (var obj in jobToggles)
-						{
-							obj.GetComponent<Toggle>().isOn = false;
-						}
-
-						toggle.isOn = true;
-					}
-				}
-				else if (Input.GetKey(KeyCode.LeftShift) || e.button == PointerEventData.InputButton.Middle)
-				{
-                    if (staff.Qualifications.Count == 0)
-                    {
-                        return;
                     }
-                    List<RoomDefinition.Type> recommendedJobRooms = staff.GetRecommendedJobRooms();
-                    if (recommendedJobRooms.Count > 0)
+                }
+                else if (e.button == PointerEventData.InputButton.Middle)
+                {
+                    ToggleAllQualifications(jobToggles);
+                    if (staffMenu != null)
                     {
-                        foreach (StaffJobToggle staffJobToggle2 in jobToggles)
+                        var p = staffMenu.GetType().GetField("_staffMenuRowProvider", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).GetValue(staffMenu);
+                        if (p is StaffMenuRowProvider provider)
                         {
-                            Toggle component2 = staffJobToggle2.GetComponent<Toggle>();
-                            JobRoomDescription description;
-                            if (component2.interactable && (description = (staffJobToggle2.Job as JobRoomDescription)) != null)
-                            {
-                                component2.isOn = recommendedJobRooms.Exists((RoomDefinition.Type x) => x == description.Room._type);
-                            }
-                            else if (staff.Definition._type == StaffDefinition.Type.Assistant && component2.interactable && staffJobToggle2.Job is JobItemDescription)
-                            {
-                                component2.isOn = recommendedJobRooms.Exists((RoomDefinition.Type x) => x == RoomDefinition.Type.Reception);
-                            }
+                            provider.RefreshRowJobs();
                         }
-                    }
-                    if (staff.Definition._type == StaffDefinition.Type.Janitor)
-                    {
-                        List<JobMaintenance.JobDescription> recommendedJobs = staff.GetRecommendedJobs();
-                        if (recommendedJobs.Count > 0)
+
+                        MethodInfo method = staffMenu.GetType().GetMethod("CreateJobIcons", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                        if (method != null)
                         {
-                            foreach (StaffJobToggle staffJobToggle3 in jobToggles)
+                            method.Invoke(staffMenu, new object[]
                             {
-                                Toggle component3 = staffJobToggle3.GetComponent<Toggle>();
-                                JobMaintenanceDescription description;
-                                if (component3.interactable && (description = (staffJobToggle3.Job as JobMaintenanceDescription)) != null)
-                                {
-                                    component3.isOn = recommendedJobs.Exists((JobMaintenance.JobDescription x) => x == description.Description);
-                                }
-                                if (component3.interactable && staffJobToggle3.Job is JobGhostDescription)
-                                {
-                                    component3.isOn = recommendedJobs.Exists((JobMaintenance.JobDescription x) => x == JobMaintenance.JobDescription.Ghost);
-                                }
-                                if (component3.interactable && staffJobToggle3.Job is JobUpgradeDescription)
-                                {
-                                    component3.isOn = recommendedJobs.Exists((JobMaintenance.JobDescription x) => x == JobMaintenance.JobDescription.Max);
-                                }
-                            }
+                                staff.Definition._type
+                            });
                         }
                     }
                 }
-                StaffMenu staffMenu = staff.Level.HUD.FindMenu<StaffMenu>(true);
+            }
+            catch (Exception exception)
+            {
+                Main.Logger.Error(exception.ToString());
+            }
+        }
+        public void ToggleAllQualifications(List<StaffJobToggle> jobToggles)
+        {
+            if (staff.Qualifications.Count == 0)
+            {
+                return;
+            }
+            List<RoomDefinition.Type> recommendedJobRooms = staff.GetRecommendedJobRooms();
+            if (recommendedJobRooms.Count > 0)
+            {
+                foreach (StaffJobToggle staffJobToggle2 in jobToggles)
+                {
+                    Toggle toggle = staffJobToggle2.GetComponent<Toggle>();
+                    JobRoomDescription description;
+                    if (toggle.interactable && (description = (staffJobToggle2.Job as JobRoomDescription)) != null)
+                    {
+                        if (recommendedJobRooms.Exists((RoomDefinition.Type x) => x == description.Room._type))
+                            staff.JobExclusions.Remove(staffJobToggle2.Job);
+                        else
+                            staff.JobExclusions.AddUnique(staffJobToggle2.Job);
+                    }
+                    else if (staff.Definition._type == StaffDefinition.Type.Assistant && toggle.interactable && staffJobToggle2.Job is JobItemDescription)
+                    {
+                        if (recommendedJobRooms.Exists((RoomDefinition.Type x) => x == RoomDefinition.Type.Reception))
+                            staff.JobExclusions.Remove(staffJobToggle2.Job);
+                        else
+                            staff.JobExclusions.AddUnique(staffJobToggle2.Job);
+                    }
+                }
+            }
+            if (staff.Definition._type == StaffDefinition.Type.Janitor)
+            {
+                List<JobMaintenance.JobDescription> recommendedJobs = staff.GetRecommendedJobs();
+                if (recommendedJobs.Count > 0)
+                {
+                    foreach (StaffJobToggle staffJobToggle3 in jobToggles)
+                    {
+                        Toggle toggle = staffJobToggle3.GetComponent<Toggle>();
+                        JobMaintenanceDescription description;
+                        if (toggle.interactable && (description = (staffJobToggle3.Job as JobMaintenanceDescription)) != null)
+                        {
+                            if (recommendedJobs.Exists((JobMaintenance.JobDescription x) => x == description.Description))
+                                staff.JobExclusions.Remove(staffJobToggle3.Job);
+                            else
+                                staff.JobExclusions.AddUnique(staffJobToggle3.Job);
+                        }
+                        if (toggle.interactable && staffJobToggle3.Job is JobGhostDescription)
+                        {
+                            if (recommendedJobs.Exists((JobMaintenance.JobDescription x) => x == JobMaintenance.JobDescription.Ghost))
+                                staff.JobExclusions.Remove(staffJobToggle3.Job);
+                            else
+                                staff.JobExclusions.AddUnique(staffJobToggle3.Job);
+                        }
+                        if (toggle.interactable && staffJobToggle3.Job is JobUpgradeDescription)
+                        {
+                            if (recommendedJobs.Exists((JobMaintenance.JobDescription x) => x == JobMaintenance.JobDescription.Max))
+                                staff.JobExclusions.Remove(staffJobToggle3.Job);
+                            else
+                                staff.JobExclusions.AddUnique(staffJobToggle3.Job);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(StaffJobToggle), "OnToggled")]
+    static class StaffJobToggle_OnToggled_Patch
+    {
+        static void Postfix(StaffJobToggle __instance, Staff ____staff)
+        {
+            if (!Main.enabled)
+            {
+                return;
+            }
+            try
+            {
+                StaffMenu staffMenu = ____staff.Level.HUD.FindMenu<StaffMenu>(true);
                 if (staffMenu != null)
                 {
                     MethodInfo method = staffMenu.GetType().GetMethod("CreateJobIcons", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
@@ -646,62 +699,88 @@ namespace JobAssign
                     {
                         method.Invoke(staffMenu, new object[]
                         {
-                            staff.Definition._type
+                                ____staff.Definition._type
                         });
                     }
                 }
-			}
-			catch (Exception exception)
-			{
-				Main.Logger.Error(exception.ToString());
-			}
-		}
-	}
+            }
+            catch (Exception ex)
+            {
+                Main.Logger.Error(ex.ToString() + ": " + ex.StackTrace.ToString());
+            }
+        }
+    }
+    [HarmonyPatch(typeof(StaffMenu), "OnJobRowPressed")]
+    static class StaffMenu_OnJobRowPressed_Patch
+    {
+        static void Postfix(StaffMenu __instance, Staff staff)
+        {
+            if (!Main.enabled)
+            {
+                return;
+            }
+            try
+            {
+                MethodInfo method = __instance.GetType().GetMethod("CreateJobIcons", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                if (method != null)
+                {
+                    method.Invoke(__instance, new object[]
+                    {
+                            staff.Definition._type
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Main.Logger.Error(ex.ToString() + ": " + ex.StackTrace.ToString());
+            }
+        }
+    }
 
-	public static class Extensions
-	{
+    public static class Extensions
+    {
         private static void GetRecommendedJobRooms(this Staff staff, QualificationSlot qualificationSlot, List<RoomDefinition.Type> recommendedRooms)
-		{
-			if (qualificationSlot.Definition.RequiredRoomUnlocked != null)
-			{
-				recommendedRooms.Add(qualificationSlot.Definition.RequiredRoomUnlocked.Instance._type);
-			}
+        {
+            if (qualificationSlot.Definition.RequiredRoomUnlocked != null)
+            {
+                recommendedRooms.Add(qualificationSlot.Definition.RequiredRoomUnlocked.Instance._type);
+            }
 
-			if (qualificationSlot.Definition.RequiredIllnessWithTreatmentRoom != null)
-			{
-				recommendedRooms.Add(qualificationSlot.Definition.RequiredIllnessWithTreatmentRoom.Instance._type);
-			}
+            if (qualificationSlot.Definition.RequiredIllnessWithTreatmentRoom != null)
+            {
+                recommendedRooms.Add(qualificationSlot.Definition.RequiredIllnessWithTreatmentRoom.Instance._type);
+            }
 
-			foreach (var modifier in qualificationSlot.Definition.Modifiers)
-			{
-				var validRooms = new List<RoomDefinition.Type>();
-				if (modifier is QualificationBaseModifier baseModifier)
-				{
-					var roomDefinition = Traverse.Create(baseModifier).Field("_validRooms").GetValue<SharedInstance<RoomDefinition>[]>();
-					if (roomDefinition.Length > 0)
-					{
-						validRooms.AddRange(roomDefinition.Select(x => x.Instance._type));
-					}
-				}
+            foreach (var modifier in qualificationSlot.Definition.Modifiers)
+            {
+                var validRooms = new List<RoomDefinition.Type>();
+                if (modifier is QualificationBaseModifier baseModifier)
+                {
+                    var roomDefinition = Traverse.Create(baseModifier).Field("_validRooms").GetValue<SharedInstance<RoomDefinition>[]>();
+                    if (roomDefinition.Length > 0)
+                    {
+                        validRooms.AddRange(roomDefinition.Select(x => x.Instance._type));
+                    }
+                }
 
-				if (validRooms.Count > 0)
-				{
-					recommendedRooms.AddRange(validRooms);
-				}
-				else
-				{
-					if (modifier is QualificationDiagnosisModifier)
-					{
-						recommendedRooms.AddRange(Main.settings.DiagnosisRooms);
-					}
-					else if (modifier is QualificationTreatmentModifier)
-					{
-						recommendedRooms.AddRange(Main.settings.TreatmentRooms);
-					}
-					else if (modifier is QualificationResearchModifier)
-					{
-						recommendedRooms.Add(RoomDefinition.Type.Research);
-					}
+                if (validRooms.Count > 0)
+                {
+                    recommendedRooms.AddRange(validRooms);
+                }
+                else
+                {
+                    if (modifier is QualificationDiagnosisModifier)
+                    {
+                        recommendedRooms.AddRange(Main.settings.DiagnosisRooms);
+                    }
+                    else if (modifier is QualificationTreatmentModifier)
+                    {
+                        recommendedRooms.AddRange(Main.settings.TreatmentRooms);
+                    }
+                    else if (modifier is QualificationResearchModifier)
+                    {
+                        recommendedRooms.Add(RoomDefinition.Type.Research);
+                    }
                     else if (modifier is QualificationServiceModifier)
                     {
                         recommendedRooms.AddRange(Main.settings.CustomerServiceRooms);
@@ -711,8 +790,8 @@ namespace JobAssign
                         recommendedRooms.Add(RoomDefinition.Type.Marketing);
                     }
                 }
-			}
-		}
+            }
+        }
 
         private static void GetRecommendedJobs(this Staff staff, QualificationSlot qualificationSlot, List<JobMaintenance.JobDescription> recommendedJobs)
         {
@@ -801,6 +880,6 @@ namespace JobAssign
             return list;
         }
 
-        
+
     }
 }
