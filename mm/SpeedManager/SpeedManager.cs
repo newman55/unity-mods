@@ -154,4 +154,23 @@ namespace SpeedManager
             }
         }
     }
+
+    [HarmonyPatch(typeof(Player), "OnLoad")]
+    static class Player_OnLoad_Patch
+    {
+        static void Postfix(Player __instance)
+        {
+            if (!Main.enabled)
+                return;
+
+            try
+            {
+                Main.ApplySettings(Main.settings.Preset);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.ToString());
+            }
+        }
+    }
 }
