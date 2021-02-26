@@ -469,12 +469,12 @@ namespace AdvancedAI
     [HarmonyPatch(typeof(RoomLogicTrainingRoom), "RemovePupil")]
     static class RoomLogicTrainingRoom_RemovePupil_Patch
     {
-        static void Postfix(RoomLogicTrainingRoom __instance, Staff staff)
+        static void Postfix(RoomLogicTrainingRoom __instance, Staff pupil)
         {
             if (!Main.enabled || !Main.settings.TakeBreakAfterTraining)
                 return;
 
-            staff.TakeBreak();
+            pupil.TakeBreak();
         }
     }
 

@@ -30,6 +30,7 @@ namespace JobAssign
             RoomDefinition.Type.BlankLooksClinic, RoomDefinition.Type.EightBallClinic, RoomDefinition.Type.ExplorerClinic,
             RoomDefinition.Type.CardboardClinic, RoomDefinition.Type.FrogClinic, RoomDefinition.Type.AstroClinic,
             RoomDefinition.Type.PinocchioClinic, RoomDefinition.Type.ScarecrowClinic, RoomDefinition.Type.TechClinic, RoomDefinition.Type.PlantWardClinic,
+            RoomDefinition.Type.StuntmanClinic, RoomDefinition.Type.MudPersonClinic, RoomDefinition.Type.ToySoldierClinic,
         };
 
         public List<RoomDefinition.Type> DiagnosisRooms = new List<RoomDefinition.Type>
