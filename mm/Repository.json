@@ -4,7 +4,7 @@
 		{"Id": "ExtendedCamera", "Version": "1.0.1", "DownloadUrl": "https://www.dropbox.com/s/o2ej2o4z9qyhb82/ExtendedCamera.zip?dl=1"},
 		{"Id": "SpeedManager", "Version": "1.0.0", "DownloadUrl": "https://www.dropbox.com/s/y7ftpxhmgvg57wj/SpeedManager.zip?dl=1"},
 		{"Id": "EnhancedGraphics", "Version": "1.1.0", "DownloadUrl": "https://www.dropbox.com/s/2hrp7avoiamwhuo/EnhancedGraphics.zip?dl=1"},
-		{"Id": "AutoSetup", "Version": "1.2.0"},
+		{"Id": "AutoSetup", "Version": "1.2.1"},
 		{"Id": "Assistant", "Version": "1.2.0"},
 		{"Id": "TestMod", "Version": "1.2.0"}
 	]
