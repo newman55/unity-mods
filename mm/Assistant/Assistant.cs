@@ -404,7 +404,13 @@ namespace Assistant
                         options.pitstopOnLap = 0;
                         delta = 0;
                     }
-                    if (delta > -0.05f && delta < 0.05f)
+
+
+                    if(delta > 0.3f && vehicle.bonuses.activeMechanicBonuses.Contains(MechanicBonus.Trait.SuperOvertakeMode))
+                    {
+                        mode = Fuel.EngineMode.SuperOvertake;
+                    }
+                    else if (delta > -0.05f && delta < 0.05f)
                     {
                         mode = Fuel.EngineMode.Medium;
                     }
@@ -431,7 +437,11 @@ namespace Assistant
                     if (delta < 0 && fuelLapsRemainingDecimal > lapsRemaining || delta > 0 && tyreLapRange > lapsRemaining)
                         delta = fuelLapDelta;
 
-                    if (delta > options.fuel - 0.05f && delta < options.fuel + 0.05f)
+                    if(delta > options.fuel + 0.3f && vehicle.bonuses.activeMechanicBonuses.Contains(MechanicBonus.Trait.SuperOvertakeMode))
+                    {
+                        mode = Fuel.EngineMode.SuperOvertake;
+                    }
+                    else if (delta > options.fuel - 0.05f && delta < options.fuel + 0.05f)
                     {
                         mode = Fuel.EngineMode.Medium;
                     }
@@ -448,6 +458,10 @@ namespace Assistant
                         mode = Fuel.EngineMode.Low;
                     }
                 }
+            }
+            else if (fuelLapDelta > options.fuel + 0.3f && vehicle.bonuses.activeMechanicBonuses.Contains(MechanicBonus.Trait.SuperOvertakeMode))
+            {
+                mode = Fuel.EngineMode.SuperOvertake;
             }
             else if (fuelLapDelta > options.fuel - 0.05f && fuelLapDelta < options.fuel + 0.05f)
             {
