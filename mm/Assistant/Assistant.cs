@@ -21,8 +21,11 @@ namespace Assistant
         [Draw("Max on the 1st lap", VisibleOn = "engine|True")] public bool boostEngine = false;
         [Draw("Planned pitstop", VisibleOn = "engine|True")] public bool plannedPitstop = false;
         [Draw("Hold fuel lap delta", DrawType.Slider, Min = -1, Max = 1, Precision = 2, VisibleOn = "#HoldfuelVisible|True")] public float fuel = 0f;
-        [Draw("On lap", DrawType.Slider, Min = 1, Max = 100, Precision = 0, VisibleOn = "#OnlapVisible|True")] public float pitstopOnLap = 100f;
+        [Draw("On lap", DrawType.Field, Min = 1, Max = 1000, Precision = 0, VisibleOn = "#OnlapVisible|True")] public float pitstopOnLap = 100f;
+        [Draw("Next pitstops", DrawType.Field, Min = 1.0, Precision = 0, VisibleOn = "#OnlapVisible|True")]
+        public float[] nextPitstops = { };
 
+        [Draw("Assist ERS")] public bool ers = false;
         bool OnlapVisible => engine && plannedPitstop;
         bool HoldfuelVisible => engine && !plannedPitstop;
     }
@@ -339,6 +342,150 @@ namespace Assistant
             return mode;
         }
 
+
+        internal static void AssistERS(DriverAssistOptions options, RacingVehicle vehicle)
+        {
+
+            if (!options.ers || Game.instance.sessionManager.eventDetails.currentSession.sessionType != SessionDetails.SessionType.Race)
+            {
+                return;
+            }
+            if (!options.ers)
+            {
+                vehicle.ERSController.autoControlERS = true;
+            }
+
+            if (vehicle.ERSController.state == ERSController.ERSState.Broken || vehicle.ERSController.state == ERSController.ERSState.NotVisible)
+            {
+                return;
+            }
+
+            //In game, the ERS should be set to "Auto" and not "manual". I guess the UI take the control if it's set to manual.
+            vehicle.ERSController.autoControlERS = false;
+            
+            if (vehicle.ERSController.normalizedCharge < 0.35)
+            {
+                return;
+            }
+
+            bool hybrideEnabled = vehicle.ERSController.CanChangeToSpecificMode(ERSController.Mode.Hybrid);
+            bool powerEnabled = vehicle.ERSController.CanChangeToSpecificMode(ERSController.Mode.Power);
+
+            if (hybrideEnabled)
+            {
+                //* 1.25 so that we use the laps remaining if using the low engine mode
+                float fuelLapsRemainingDecimal = vehicle.performance.fuel.GetFuelLapsRemainingDecimal() * 1.25f;
+                float targetFuelLapDelta = vehicle.performance.fuel.GetTargetFuelLapDelta();
+
+                if (vehicle.championship.rules.isRefuelingOn)
+                {
+                    if (options.plannedPitstop)
+                    {
+                        int lap = vehicle.timer.lap;
+                        float num = vehicle.pathController.distanceAlongTrackPath01;
+                        if (num == 1f)
+                        {
+                            num = 0f;
+                        }
+                        float num2 = fuelLapsRemainingDecimal - (options.pitstopOnLap - (float)lap - num);
+
+                        if (num2 < 0)
+                        {
+                            if (vehicle.ERSController.GetNormalizedCooldown(ERSController.Mode.Hybrid) == 0 && vehicle.ERSController.mode == ERSController.Mode.Harvest)
+                            {
+                                vehicle.ERSController.SetERSMode(ERSController.Mode.Hybrid);
+                            }
+                            return;
+                        }
+                    }
+                    else
+                    {
+
+                        float lapsRemainingDecimal = vehicle.GetLapsRemainingDecimal();
+                        float fuelNeeded = lapsRemainingDecimal + options.fuel;
+
+                        if (fuelLapsRemainingDecimal < fuelNeeded)
+                        {
+                            if (vehicle.ERSController.GetNormalizedCooldown(ERSController.Mode.Hybrid) == 0 && vehicle.ERSController.mode == ERSController.Mode.Harvest)
+                            {
+                                vehicle.ERSController.SetERSMode(ERSController.Mode.Hybrid);
+                            }
+                            return;
+                        }
+                    }
+
+                }
+                else
+                {
+                    if (targetFuelLapDelta < (options.fuel - 0.2f))
+                    {
+                        if (vehicle.ERSController.GetNormalizedCooldown(ERSController.Mode.Hybrid) == 0 && vehicle.ERSController.mode == ERSController.Mode.Harvest)
+                        {
+                            vehicle.ERSController.SetERSMode(ERSController.Mode.Hybrid);
+                        }
+                        return;
+                    }
+                }
+            }
+
+
+
+            if (powerEnabled)
+            {
+                if (Game.instance.sessionManager.isSafetyCarFlag)
+                {
+                    return;
+                }
+
+                if (vehicle.timer.currentSector == Game.instance.sessionManager.yellowFlagSector)
+                {
+                    return;
+                }
+
+
+                if (vehicle.ERSController.GetNormalizedCooldown(ERSController.Mode.Power) == 0)
+                {
+
+                    //Edge case when first or last of race
+                    float gapAhead = vehicle.timer.gapToAhead;
+                    float gapBehind = vehicle.timer.gapToBehind;
+                    if (gapAhead == 0)
+                    {
+                        gapAhead = gapBehind;
+                    }
+                    if (gapBehind == 0)
+                    {
+                        gapBehind = gapAhead;
+                    }
+
+                    float minGap = Math.Min(gapAhead, gapBehind);
+
+                    //If we're about to get overtaken or if we're stuck beheind a car we active power mode
+                    // Let's say that 1% power =~ 0.01 secs
+                    if (minGap < vehicle.ERSController.normalizedCharge)
+                    {
+                        vehicle.ERSController.SetERSMode(ERSController.Mode.Power);
+                    }
+                    else
+                    {
+                        //If we're full on power we use it
+                        if (vehicle.ERSController.normalizedCharge > 0.90)
+                        {
+                            vehicle.ERSController.SetERSMode(ERSController.Mode.Power);
+                        }
+
+                        //If power < 0.5 we go back to harvest mode in case we need the power to close a gap
+                        if (vehicle.ERSController.mode == ERSController.Mode.Power && vehicle.ERSController.normalizedCharge < 0.5 && vehicle.ERSController.GetNormalizedCooldown(ERSController.Mode.Harvest) == 0)
+                        {
+                            vehicle.ERSController.SetERSMode(ERSController.Mode.Harvest);
+                        }
+
+                    }
+                }
+                
+            }
+        }
+
         internal static void AssistEngine(DriverAssistOptions options, RacingVehicle vehicle)
         {
             if (!options.engine || Game.instance.sessionManager.eventDetails.currentSession.sessionType != SessionDetails.SessionType.Race) return;
@@ -393,61 +540,143 @@ namespace Assistant
             {
                 if (options.plannedPitstop)
                 {
-                    var currentLap = vehicle.timer.lap;
-                    var distanceAlongTrackPath01 = vehicle.pathController.distanceAlongTrackPath01;
-                    if (distanceAlongTrackPath01 == 1)
-                        distanceAlongTrackPath01 = 0;
-                    var delta = fuelLapsRemainingDecimal - (options.pitstopOnLap - currentLap - distanceAlongTrackPath01);
-                    if (options.pitstopOnLap < currentLap)
+                    //var currentLap = vehicle.timer.lap;
+                    //var distanceAlongTrackPath01 = vehicle.pathController.distanceAlongTrackPath01;
+                    //if (distanceAlongTrackPath01 == 1)
+                    //    distanceAlongTrackPath01 = 0;
+                    //var delta = fuelLapsRemainingDecimal - (options.pitstopOnLap - currentLap - distanceAlongTrackPath01);
+                    //if (options.pitstopOnLap < currentLap)
+                    //{
+                    //    delta = -1;
+                    //}
+
+
+                    //if(delta > 0.3f && vehicle.bonuses.activeMechanicBonuses.Contains(MechanicBonus.Trait.SuperOvertakeMode))
+                    //{
+                    //    mode = Fuel.EngineMode.SuperOvertake;
+                    //}
+                    //else if (delta > -0.05f && delta < 0.05f)
+                    //{
+                    //    mode = Fuel.EngineMode.Medium;
+                    //}
+                    //else if (delta > 0.2f)
+                    //{
+                    //    mode = Fuel.EngineMode.Overtake;
+                    //}
+                    //else if (delta > 0)
+                    //{
+                    //    mode = Fuel.EngineMode.High;
+                    //}
+                    //else if (delta < 0)
+                    //{
+                    //    mode = Fuel.EngineMode.Low;
+                    //}
+
+
+                    int lap = vehicle.timer.lap;
+                    float num = vehicle.pathController.distanceAlongTrackPath01;
+                    if (num == 1f)
                     {
-                        options.plannedPitstop = false;
-                        options.pitstopOnLap = 0;
-                        delta = 0;
+                        num = 0f;
                     }
-                    if (delta > -0.05f && delta < 0.05f)
+
+                    float diff = options.pitstopOnLap - (float)lap;
+                    if (diff < 0)
                     {
-                        mode = Fuel.EngineMode.Medium;
+                        diff = 1;
                     }
-                    else if (delta > 0.2f)
+                    float lapLeft = diff - num;
+
+
+                    if (fuelLapsRemainingDecimal > lapLeft * 1.3f && vehicle.bonuses.activeMechanicBonuses.Contains(MechanicBonus.Trait.SuperOvertakeMode))
+                    {
+                        mode = Fuel.EngineMode.SuperOvertake;
+
+                    }
+                    else if (fuelLapsRemainingDecimal > lapLeft * 1.2f)
                     {
                         mode = Fuel.EngineMode.Overtake;
                     }
-                    else if (delta > 0)
+                    else if (fuelLapsRemainingDecimal > lapLeft)
                     {
                         mode = Fuel.EngineMode.High;
+
                     }
-                    else if (delta < 0)
+                    else if (fuelLapsRemainingDecimal > lapLeft * 0.9f)
+                    {
+                        mode = Fuel.EngineMode.Medium;
+                    }
+                    else
                     {
                         mode = Fuel.EngineMode.Low;
                     }
+
+
                 }
                 else
                 {
-                    float lapLength = GameUtility.MilesToMeters(Game.instance.sessionManager.eventDetails.circuit.trackLengthMiles);
-                    var tyreLapRange = TyreSet.CalculateLapRangeOfTyre(vehicle.setup.tyreSet, lapLength) * Math.Max(0, vehicle.setup.tyreSet.GetCondition() /*- vehicle.setup.tyreSet.GetCliffCondition()*/);
-                    var lapsRemaining = vehicle.GetLapsRemainingDecimal();
 
-                    var delta = fuelLapsRemainingDecimal - tyreLapRange;
-                    if (delta < 0 && fuelLapsRemainingDecimal > lapsRemaining || delta > 0 && tyreLapRange > lapsRemaining)
-                        delta = fuelLapDelta;
+                    //float lapLength = GameUtility.MilesToMeters(Game.instance.sessionManager.eventDetails.circuit.trackLengthMiles);
+                    //var tyreLapRange = TyreSet.CalculateLapRangeOfTyre(vehicle.setup.tyreSet, lapLength) * Math.Max(0, vehicle.setup.tyreSet.GetCondition() /*- vehicle.setup.tyreSet.GetCliffCondition()*/);
+                    //var lapsRemaining = vehicle.GetLapsRemainingDecimal();
 
-                    if (delta > options.fuel - 0.05f && delta < options.fuel + 0.05f)
+                    //var delta = fuelLapsRemainingDecimal - tyreLapRange;
+                    //if (delta < 0 && fuelLapsRemainingDecimal > lapsRemaining || delta > 0 && tyreLapRange > lapsRemaining)
+                    //    delta = fuelLapDelta;
+
+
+
+                    //if(delta > options.fuel + 0.3f && vehicle.bonuses.activeMechanicBonuses.Contains(MechanicBonus.Trait.SuperOvertakeMode))
+                    //{
+                    //    mode = Fuel.EngineMode.SuperOvertake;
+                    //}
+                    //else if (delta > options.fuel - 0.05f && delta < options.fuel + 0.05f)
+                    //{
+                    //    mode = Fuel.EngineMode.Medium;
+                    //}
+                    //else if (delta > options.fuel + 0.2f)
+                    //{
+                    //    mode = Fuel.EngineMode.Overtake;
+                    //}
+                    //else if (delta > options.fuel)
+                    //{
+                    //    mode = Fuel.EngineMode.High;
+                    //}
+                    //else if (delta < options.fuel)
+                    //{
+                    //    mode = Fuel.EngineMode.Low;
+                    //}
+
+                    float lapLeft = vehicle.GetLapsRemainingDecimal() + options.fuel;
+
+                    if (fuelLapsRemainingDecimal > lapLeft * 1.3f && vehicle.bonuses.activeMechanicBonuses.Contains(MechanicBonus.Trait.SuperOvertakeMode))
                     {
-                        mode = Fuel.EngineMode.Medium;
+                        mode = Fuel.EngineMode.SuperOvertake;
+
                     }
-                    else if (delta > options.fuel + 0.2f)
+                    else if (fuelLapsRemainingDecimal > lapLeft * 1.2f)
                     {
                         mode = Fuel.EngineMode.Overtake;
                     }
-                    else if (delta > options.fuel)
+                    else if (fuelLapsRemainingDecimal > lapLeft)
                     {
                         mode = Fuel.EngineMode.High;
+
                     }
-                    else if (delta < options.fuel)
+                    else if (fuelLapsRemainingDecimal > lapLeft * 0.9f)
+                    {
+                        mode = Fuel.EngineMode.Medium;
+                    }
+                    else
                     {
                         mode = Fuel.EngineMode.Low;
                     }
+
                 }
+            }
+            else if (fuelLapDelta > options.fuel + 0.3f && vehicle.bonuses.activeMechanicBonuses.Contains(MechanicBonus.Trait.SuperOvertakeMode))
+            {
+                mode = Fuel.EngineMode.SuperOvertake;
             }
             else if (fuelLapDelta > options.fuel - 0.05f && fuelLapDelta < options.fuel + 0.05f)
             {
@@ -525,12 +754,14 @@ namespace Assistant
                     Assistant.AssistDrive(Main.settings.driver1AssistOptions, vehicle, Assistant.tyre1);
                     if (inGateID % 30 == 0)
                         Assistant.AssistEngine(Main.settings.driver1AssistOptions, vehicle);
+                        Assistant.AssistERS(Main.settings.driver1AssistOptions, vehicle);
                 }
                 else if (vehicle.carID == 1)
                 {
                     Assistant.AssistDrive(Main.settings.driver2AssistOptions, vehicle, Assistant.tyre2);
                     if (inGateID % 30 == 0)
                         Assistant.AssistEngine(Main.settings.driver2AssistOptions, vehicle);
+                        Assistant.AssistERS(Main.settings.driver2AssistOptions, vehicle);
                 }
             }
 
@@ -848,15 +1079,33 @@ namespace Assistant
                     Main.settings.driver2AssistOptions.pitstopOnLap = value;
                 }*/
 
+                var pitQueue = new Queue<float>(Main.settings.driver1AssistOptions.nextPitstops);
+
                 if (vehicle.carID == 0 && Main.settings.driver1AssistOptions.engine && Main.settings.driver1AssistOptions.plannedPitstop)
                 {
-                    Main.settings.driver1AssistOptions.plannedPitstop = false;
-                    Main.settings.driver1AssistOptions.pitstopOnLap = 0;
+                    if (pitQueue.Count == 0)
+                    {
+                        Main.settings.driver1AssistOptions.plannedPitstop = false;
+                        Main.settings.driver1AssistOptions.pitstopOnLap = 0f;
+                    }
+                    else
+                    {
+                        Main.settings.driver1AssistOptions.pitstopOnLap = pitQueue.Dequeue();
+                        Main.settings.driver1AssistOptions.nextPitstops = pitQueue.ToArray();
+                    }
                 }
                 if (vehicle.carID == 1 && Main.settings.driver2AssistOptions.engine && Main.settings.driver2AssistOptions.plannedPitstop)
                 {
-                    Main.settings.driver2AssistOptions.plannedPitstop = false;
-                    Main.settings.driver2AssistOptions.pitstopOnLap = 0;
+                    if (pitQueue.Count == 0)
+                    {
+                        Main.settings.driver2AssistOptions.plannedPitstop = false;
+                        Main.settings.driver2AssistOptions.pitstopOnLap = 0f;
+                    }
+                    else
+                    {
+                        Main.settings.driver2AssistOptions.pitstopOnLap = pitQueue.Dequeue();
+                        Main.settings.driver2AssistOptions.nextPitstops = pitQueue.ToArray();
+                    }
                 }
             }
         }
