@@ -547,9 +547,7 @@ namespace Assistant
                     var delta = fuelLapsRemainingDecimal - (options.pitstopOnLap - currentLap - distanceAlongTrackPath01);
                     if (options.pitstopOnLap < currentLap)
                     {
-                        options.plannedPitstop = false;
-                        options.pitstopOnLap = 0;
-                        delta = 0;
+                        delta = -1;
                     }
 
 
