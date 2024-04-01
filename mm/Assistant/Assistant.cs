@@ -21,7 +21,7 @@ namespace Assistant
         [Draw("Max on the 1st lap", VisibleOn = "engine|True")] public bool boostEngine = false;
         [Draw("Planned pitstop", VisibleOn = "engine|True")] public bool plannedPitstop = false;
         [Draw("Hold fuel lap delta", DrawType.Slider, Min = -1, Max = 1, Precision = 2, VisibleOn = "#HoldfuelVisible|True")] public float fuel = 0f;
-        [Draw("On lap", DrawType.Slider, Min = 1, Max = 100, Precision = 0, VisibleOn = "#OnlapVisible|True")] public float pitstopOnLap = 100f;
+        [Draw("On lap", DrawType.Field, Min = 1, Max = 1000, Precision = 0, VisibleOn = "#OnlapVisible|True")] public float pitstopOnLap = 100f;
 
         bool OnlapVisible => engine && plannedPitstop;
         bool HoldfuelVisible => engine && !plannedPitstop;
@@ -337,6 +337,12 @@ namespace Assistant
             }
 
             return mode;
+        }
+
+
+        internal static void AssistERS(DriverAssistOptions options, RacingVehicle vehicle)
+        {
+
         }
 
         internal static void AssistEngine(DriverAssistOptions options, RacingVehicle vehicle)
