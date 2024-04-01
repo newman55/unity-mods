@@ -22,6 +22,9 @@ namespace Assistant
         [Draw("Planned pitstop", VisibleOn = "engine|True")] public bool plannedPitstop = false;
         [Draw("Hold fuel lap delta", DrawType.Slider, Min = -1, Max = 1, Precision = 2, VisibleOn = "#HoldfuelVisible|True")] public float fuel = 0f;
         [Draw("On lap", DrawType.Field, Min = 1, Max = 1000, Precision = 0, VisibleOn = "#OnlapVisible|True")] public float pitstopOnLap = 100f;
+        [Draw("Next pitstops", DrawType.Field, Min = 1.0, Precision = 0, VisibleOn = "#OnlapVisible|True")]
+        public float[] nextPitstops = { };
+
         [Draw("Assist ERS")] public bool ers = false;
         bool OnlapVisible => engine && plannedPitstop;
         bool HoldfuelVisible => engine && !plannedPitstop;
@@ -1008,15 +1011,33 @@ namespace Assistant
                     Main.settings.driver2AssistOptions.pitstopOnLap = value;
                 }*/
 
+                var pitQueue = new Queue<float>(Main.settings.driver1AssistOptions.nextPitstops);
+
                 if (vehicle.carID == 0 && Main.settings.driver1AssistOptions.engine && Main.settings.driver1AssistOptions.plannedPitstop)
                 {
-                    Main.settings.driver1AssistOptions.plannedPitstop = false;
-                    Main.settings.driver1AssistOptions.pitstopOnLap = 0;
+                    if (pitQueue.Count == 0)
+                    {
+                        Main.settings.driver1AssistOptions.plannedPitstop = false;
+                        Main.settings.driver1AssistOptions.pitstopOnLap = 0f;
+                    }
+                    else
+                    {
+                        Main.settings.driver1AssistOptions.pitstopOnLap = pitQueue.Dequeue();
+                        Main.settings.driver1AssistOptions.nextPitstops = pitQueue.ToArray();
+                    }
                 }
                 if (vehicle.carID == 1 && Main.settings.driver2AssistOptions.engine && Main.settings.driver2AssistOptions.plannedPitstop)
                 {
-                    Main.settings.driver2AssistOptions.plannedPitstop = false;
-                    Main.settings.driver2AssistOptions.pitstopOnLap = 0;
+                    if (pitQueue.Count == 0)
+                    {
+                        Main.settings.driver2AssistOptions.plannedPitstop = false;
+                        Main.settings.driver2AssistOptions.pitstopOnLap = 0f;
+                    }
+                    else
+                    {
+                        Main.settings.driver2AssistOptions.pitstopOnLap = pitQueue.Dequeue();
+                        Main.settings.driver2AssistOptions.nextPitstops = pitQueue.ToArray();
+                    }
                 }
             }
         }
