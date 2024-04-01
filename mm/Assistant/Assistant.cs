@@ -22,7 +22,7 @@ namespace Assistant
         [Draw("Planned pitstop", VisibleOn = "engine|True")] public bool plannedPitstop = false;
         [Draw("Hold fuel lap delta", DrawType.Slider, Min = -1, Max = 1, Precision = 2, VisibleOn = "#HoldfuelVisible|True")] public float fuel = 0f;
         [Draw("On lap", DrawType.Field, Min = 1, Max = 1000, Precision = 0, VisibleOn = "#OnlapVisible|True")] public float pitstopOnLap = 100f;
-
+        [Draw("Assist ERS")] public bool ers = false;
         bool OnlapVisible => engine && plannedPitstop;
         bool HoldfuelVisible => engine && !plannedPitstop;
     }
@@ -343,6 +343,144 @@ namespace Assistant
         internal static void AssistERS(DriverAssistOptions options, RacingVehicle vehicle)
         {
 
+            if (!options.ers || Game.instance.sessionManager.eventDetails.currentSession.sessionType != SessionDetails.SessionType.Race)
+            {
+                return;
+            }
+            if (!options.ers)
+            {
+                vehicle.ERSController.autoControlERS = true;
+            }
+
+            if (vehicle.ERSController.state == ERSController.ERSState.Broken || vehicle.ERSController.state == ERSController.ERSState.NotVisible)
+            {
+                return;
+            }
+
+            //In game, the ERS should be set to "Auto" and not "manual". I guess the UI take the control if it's set to manual.
+            vehicle.ERSController.autoControlERS = false;
+            
+            if (vehicle.ERSController.normalizedCharge < 0.35)
+            {
+                return;
+            }
+
+            bool hybrideEnabled = vehicle.ERSController.CanChangeToSpecificMode(ERSController.Mode.Hybrid);
+            bool powerEnabled = vehicle.ERSController.CanChangeToSpecificMode(ERSController.Mode.Power);
+
+            if (hybrideEnabled)
+            {
+                //* 1.25 so that we use the laps remaining if using the low engine mode
+                float fuelLapsRemainingDecimal = vehicle.performance.fuel.GetFuelLapsRemainingDecimal() * 1.25f;
+                float targetFuelLapDelta = vehicle.performance.fuel.GetTargetFuelLapDelta();
+
+                if (vehicle.championship.rules.isRefuelingOn)
+                {
+                    if (options.plannedPitstop)
+                    {
+                        int lap = vehicle.timer.lap;
+                        float num = vehicle.pathController.distanceAlongTrackPath01;
+                        if (num == 1f)
+                        {
+                            num = 0f;
+                        }
+                        float num2 = fuelLapsRemainingDecimal - (options.pitstopOnLap - (float)lap - num);
+
+                        if (num2 < 0)
+                        {
+                            if (vehicle.ERSController.GetNormalizedCooldown(ERSController.Mode.Hybrid) == 0 && vehicle.ERSController.mode == ERSController.Mode.Harvest)
+                            {
+                                vehicle.ERSController.SetERSMode(ERSController.Mode.Hybrid);
+                            }
+                            return;
+                        }
+                    }
+                    else
+                    {
+
+                        float lapsRemainingDecimal = vehicle.GetLapsRemainingDecimal();
+                        float fuelNeeded = lapsRemainingDecimal + options.fuel;
+
+                        if (fuelLapsRemainingDecimal < fuelNeeded)
+                        {
+                            if (vehicle.ERSController.GetNormalizedCooldown(ERSController.Mode.Hybrid) == 0 && vehicle.ERSController.mode == ERSController.Mode.Harvest)
+                            {
+                                vehicle.ERSController.SetERSMode(ERSController.Mode.Hybrid);
+                            }
+                            return;
+                        }
+                    }
+
+                }
+                else
+                {
+                    if (targetFuelLapDelta < (options.fuel - 0.2f))
+                    {
+                        if (vehicle.ERSController.GetNormalizedCooldown(ERSController.Mode.Hybrid) == 0 && vehicle.ERSController.mode == ERSController.Mode.Harvest)
+                        {
+                            vehicle.ERSController.SetERSMode(ERSController.Mode.Hybrid);
+                        }
+                        return;
+                    }
+                }
+            }
+
+
+
+            if (powerEnabled)
+            {
+                if (Game.instance.sessionManager.isSafetyCarFlag)
+                {
+                    return;
+                }
+
+                if (vehicle.timer.currentSector == Game.instance.sessionManager.yellowFlagSector)
+                {
+                    return;
+                }
+
+
+                if (vehicle.ERSController.GetNormalizedCooldown(ERSController.Mode.Power) == 0)
+                {
+
+                    //Edge case when first or last of race
+                    float gapAhead = vehicle.timer.gapToAhead;
+                    float gapBehind = vehicle.timer.gapToBehind;
+                    if (gapAhead == 0)
+                    {
+                        gapAhead = gapBehind;
+                    }
+                    if (gapBehind == 0)
+                    {
+                        gapBehind = gapAhead;
+                    }
+
+                    float minGap = Math.Min(gapAhead, gapBehind);
+
+                    //If we're about to get overtaken or if we're stuck beheind a car we active power mode
+                    // Let's say that 1% power =~ 0.01 secs
+                    if (minGap < vehicle.ERSController.normalizedCharge)
+                    {
+                        vehicle.ERSController.SetERSMode(ERSController.Mode.Power);
+                    }
+                    else
+                    {
+                        //If we're full on power we use it
+                        if (vehicle.ERSController.normalizedCharge > 0.90)
+                        {
+                            vehicle.ERSController.SetERSMode(ERSController.Mode.Power);
+                        }
+
+                        //If power < 0.5 we go back to harvest mode in case we need the power to close a gap
+                        if (vehicle.ERSController.mode == ERSController.Mode.Power && vehicle.ERSController.normalizedCharge < 0.5 && vehicle.ERSController.GetNormalizedCooldown(ERSController.Mode.Harvest) == 0)
+                        {
+                            vehicle.ERSController.SetERSMode(ERSController.Mode.Harvest);
+                        }
+
+                    }
+                }
+                
+            }
         }
 
         internal static void AssistEngine(DriverAssistOptions options, RacingVehicle vehicle)
@@ -545,12 +683,14 @@ namespace Assistant
                     Assistant.AssistDrive(Main.settings.driver1AssistOptions, vehicle, Assistant.tyre1);
                     if (inGateID % 30 == 0)
                         Assistant.AssistEngine(Main.settings.driver1AssistOptions, vehicle);
+                        Assistant.AssistERS(Main.settings.driver1AssistOptions, vehicle);
                 }
                 else if (vehicle.carID == 1)
                 {
                     Assistant.AssistDrive(Main.settings.driver2AssistOptions, vehicle, Assistant.tyre2);
                     if (inGateID % 30 == 0)
                         Assistant.AssistEngine(Main.settings.driver2AssistOptions, vehicle);
+                        Assistant.AssistERS(Main.settings.driver2AssistOptions, vehicle);
                 }
             }
 
