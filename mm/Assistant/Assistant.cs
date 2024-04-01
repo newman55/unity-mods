@@ -540,68 +540,138 @@ namespace Assistant
             {
                 if (options.plannedPitstop)
                 {
-                    var currentLap = vehicle.timer.lap;
-                    var distanceAlongTrackPath01 = vehicle.pathController.distanceAlongTrackPath01;
-                    if (distanceAlongTrackPath01 == 1)
-                        distanceAlongTrackPath01 = 0;
-                    var delta = fuelLapsRemainingDecimal - (options.pitstopOnLap - currentLap - distanceAlongTrackPath01);
-                    if (options.pitstopOnLap < currentLap)
+                    //var currentLap = vehicle.timer.lap;
+                    //var distanceAlongTrackPath01 = vehicle.pathController.distanceAlongTrackPath01;
+                    //if (distanceAlongTrackPath01 == 1)
+                    //    distanceAlongTrackPath01 = 0;
+                    //var delta = fuelLapsRemainingDecimal - (options.pitstopOnLap - currentLap - distanceAlongTrackPath01);
+                    //if (options.pitstopOnLap < currentLap)
+                    //{
+                    //    delta = -1;
+                    //}
+
+
+                    //if(delta > 0.3f && vehicle.bonuses.activeMechanicBonuses.Contains(MechanicBonus.Trait.SuperOvertakeMode))
+                    //{
+                    //    mode = Fuel.EngineMode.SuperOvertake;
+                    //}
+                    //else if (delta > -0.05f && delta < 0.05f)
+                    //{
+                    //    mode = Fuel.EngineMode.Medium;
+                    //}
+                    //else if (delta > 0.2f)
+                    //{
+                    //    mode = Fuel.EngineMode.Overtake;
+                    //}
+                    //else if (delta > 0)
+                    //{
+                    //    mode = Fuel.EngineMode.High;
+                    //}
+                    //else if (delta < 0)
+                    //{
+                    //    mode = Fuel.EngineMode.Low;
+                    //}
+
+
+                    int lap = vehicle.timer.lap;
+                    float num = vehicle.pathController.distanceAlongTrackPath01;
+                    if (num == 1f)
                     {
-                        delta = -1;
+                        num = 0f;
                     }
 
+                    float diff = options.pitstopOnLap - (float)lap;
+                    if (diff < 0)
+                    {
+                        diff = 1;
+                    }
+                    float lapLeft = diff - num;
 
-                    if(delta > 0.3f && vehicle.bonuses.activeMechanicBonuses.Contains(MechanicBonus.Trait.SuperOvertakeMode))
+
+                    if (fuelLapsRemainingDecimal > lapLeft * 1.3f && vehicle.bonuses.activeMechanicBonuses.Contains(MechanicBonus.Trait.SuperOvertakeMode))
                     {
                         mode = Fuel.EngineMode.SuperOvertake;
+
                     }
-                    else if (delta > -0.05f && delta < 0.05f)
-                    {
-                        mode = Fuel.EngineMode.Medium;
-                    }
-                    else if (delta > 0.2f)
+                    else if (fuelLapsRemainingDecimal > lapLeft * 1.2f)
                     {
                         mode = Fuel.EngineMode.Overtake;
                     }
-                    else if (delta > 0)
+                    else if (fuelLapsRemainingDecimal > lapLeft)
                     {
                         mode = Fuel.EngineMode.High;
+
                     }
-                    else if (delta < 0)
+                    else if (fuelLapsRemainingDecimal > lapLeft * 0.9f)
+                    {
+                        mode = Fuel.EngineMode.Medium;
+                    }
+                    else
                     {
                         mode = Fuel.EngineMode.Low;
                     }
+
+
                 }
                 else
                 {
-                    float lapLength = GameUtility.MilesToMeters(Game.instance.sessionManager.eventDetails.circuit.trackLengthMiles);
-                    var tyreLapRange = TyreSet.CalculateLapRangeOfTyre(vehicle.setup.tyreSet, lapLength) * Math.Max(0, vehicle.setup.tyreSet.GetCondition() /*- vehicle.setup.tyreSet.GetCliffCondition()*/);
-                    var lapsRemaining = vehicle.GetLapsRemainingDecimal();
 
-                    var delta = fuelLapsRemainingDecimal - tyreLapRange;
-                    if (delta < 0 && fuelLapsRemainingDecimal > lapsRemaining || delta > 0 && tyreLapRange > lapsRemaining)
-                        delta = fuelLapDelta;
+                    //float lapLength = GameUtility.MilesToMeters(Game.instance.sessionManager.eventDetails.circuit.trackLengthMiles);
+                    //var tyreLapRange = TyreSet.CalculateLapRangeOfTyre(vehicle.setup.tyreSet, lapLength) * Math.Max(0, vehicle.setup.tyreSet.GetCondition() /*- vehicle.setup.tyreSet.GetCliffCondition()*/);
+                    //var lapsRemaining = vehicle.GetLapsRemainingDecimal();
 
-                    if(delta > options.fuel + 0.3f && vehicle.bonuses.activeMechanicBonuses.Contains(MechanicBonus.Trait.SuperOvertakeMode))
+                    //var delta = fuelLapsRemainingDecimal - tyreLapRange;
+                    //if (delta < 0 && fuelLapsRemainingDecimal > lapsRemaining || delta > 0 && tyreLapRange > lapsRemaining)
+                    //    delta = fuelLapDelta;
+
+
+
+                    //if(delta > options.fuel + 0.3f && vehicle.bonuses.activeMechanicBonuses.Contains(MechanicBonus.Trait.SuperOvertakeMode))
+                    //{
+                    //    mode = Fuel.EngineMode.SuperOvertake;
+                    //}
+                    //else if (delta > options.fuel - 0.05f && delta < options.fuel + 0.05f)
+                    //{
+                    //    mode = Fuel.EngineMode.Medium;
+                    //}
+                    //else if (delta > options.fuel + 0.2f)
+                    //{
+                    //    mode = Fuel.EngineMode.Overtake;
+                    //}
+                    //else if (delta > options.fuel)
+                    //{
+                    //    mode = Fuel.EngineMode.High;
+                    //}
+                    //else if (delta < options.fuel)
+                    //{
+                    //    mode = Fuel.EngineMode.Low;
+                    //}
+
+                    float lapLeft = vehicle.GetLapsRemainingDecimal() + options.fuel;
+
+                    if (fuelLapsRemainingDecimal > lapLeft * 1.3f && vehicle.bonuses.activeMechanicBonuses.Contains(MechanicBonus.Trait.SuperOvertakeMode))
                     {
                         mode = Fuel.EngineMode.SuperOvertake;
+
                     }
-                    else if (delta > options.fuel - 0.05f && delta < options.fuel + 0.05f)
-                    {
-                        mode = Fuel.EngineMode.Medium;
-                    }
-                    else if (delta > options.fuel + 0.2f)
+                    else if (fuelLapsRemainingDecimal > lapLeft * 1.2f)
                     {
                         mode = Fuel.EngineMode.Overtake;
                     }
-                    else if (delta > options.fuel)
+                    else if (fuelLapsRemainingDecimal > lapLeft)
                     {
                         mode = Fuel.EngineMode.High;
+
                     }
-                    else if (delta < options.fuel)
+                    else if (fuelLapsRemainingDecimal > lapLeft * 0.9f)
+                    {
+                        mode = Fuel.EngineMode.Medium;
+                    }
+                    else
                     {
                         mode = Fuel.EngineMode.Low;
                     }
+
                 }
             }
             else if (fuelLapDelta > options.fuel + 0.3f && vehicle.bonuses.activeMechanicBonuses.Contains(MechanicBonus.Trait.SuperOvertakeMode))
